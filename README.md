@@ -1,6 +1,6 @@
 # SwingPulse
 
-SwingPulse is a minimal World of Warcraft melee swing timer addon with one primary bar and an optional off-hand bar when dual-wielding is active.
+SwingPulse is a minimal World of Warcraft melee swing timer addon with a single sync bar, a center marker, and main-hand/off-hand swing icons.
 
 ## Install
 
@@ -21,7 +21,8 @@ SwingPulse is a minimal World of Warcraft melee swing timer addon with one prima
 ## Notes
 
 - Main-hand swings are tracked from combat log swing events.
-- Off-hand tracking is enabled only while a valid off-hand attack speed is available.
+- Off-hand tracking is shown on the same sync bar only while a valid off-hand attack speed is available.
+- The center marker helps align both swing icons for dual-wield sync timing.
 - Known on-next-swing abilities are treated as main-hand swing consumers, and Slam is treated as a swing reset signal.
 
 ## Timing Validation

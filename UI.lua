@@ -1,6 +1,8 @@
 local _, ns = ...
 
 local string_format = string.format
+local math_min = math.min
+local math_abs = math.abs
 
 local function create_bar(parent, global_name, label)
     local bar = CreateFrame("StatusBar", global_name, parent)
@@ -70,52 +72,103 @@ function ns:UpdateBarVisibility()
         return
     end
 
-    local show_offhand = self.db.show_offhand and self.state.dual_wield
     local width = self.db.width
     local height = self.db.height
-    local spacing = self.db.spacing
 
-    self.ui.main_bar:ClearAllPoints()
-    self.ui.main_bar:SetPoint("TOP", self.ui, "TOP", 0, 0)
-    self.ui.main_bar:SetSize(width, height)
+    self.ui.sync_bar:ClearAllPoints()
+    self.ui.sync_bar:SetPoint("TOP", self.ui, "TOP", 0, 0)
+    self.ui.sync_bar:SetSize(width, height)
 
-    self.ui.off_bar:ClearAllPoints()
-    self.ui.off_bar:SetPoint("TOP", self.ui.main_bar, "BOTTOM", 0, -spacing)
-    self.ui.off_bar:SetSize(width, height)
+    local icon_size = height + 8
+    self.ui.main_icon:SetSize(icon_size, icon_size)
+    self.ui.off_icon:SetSize(icon_size, icon_size)
 
-    if show_offhand then
-        self.ui.off_bar:Show()
-        self.ui:SetSize(width, (height * 2) + spacing)
+    self.ui.mid_marker:ClearAllPoints()
+    self.ui.mid_marker:SetPoint("TOP", self.ui.sync_bar, "TOP", 0, 0)
+    self.ui.mid_marker:SetPoint("BOTTOM", self.ui.sync_bar, "BOTTOM", 0, 0)
+
+    self.ui:SetSize(width, height)
+
+    if self.state.dual_wield then
+        self.ui.off_icon:Show()
     else
-        self.ui.off_bar:Hide()
-        self.ui:SetSize(width, height)
+        self.ui.off_icon:Hide()
     end
 end
 
-function ns:UpdateBarDisplay(bar, timer, now)
+function ns:UpdateIconDisplay(icon, timer, progress, is_active)
+    if not icon or not self.ui or not self.db then
+        return
+    end
+
+    local width = self.db.width
+    local clamped = self:Clamp(progress, 0, 1)
+    local offset = clamped * width
+
+    icon:ClearAllPoints()
+    icon:SetPoint("CENTER", self.ui.sync_bar, "LEFT", offset, 0)
+
+    if is_active then
+        icon:SetVertexColor(1, 1, 1, 1)
+    else
+        icon:SetVertexColor(0.68, 0.68, 0.68, 0.92)
+    end
+end
+
+function ns:UpdateSyncBarDisplay(now)
     now = now or self:Now()
 
-    local progress, remaining = self:GetTimerProgress(timer, now)
+    local main_timer = self.state.timers.main
+    local off_timer = self.state.timers.off
+    local main_progress, main_remaining = self:GetTimerProgress(main_timer, now)
+    local off_progress, off_remaining = self:GetTimerProgress(off_timer, now)
+
+    self:TraceTimerTick(main_timer, main_progress, main_remaining, now)
+    if self.state.dual_wield then
+        self:TraceTimerTick(off_timer, off_progress, off_remaining, now)
+    end
+
+    self:UpdateIconDisplay(self.ui.main_icon, main_timer, main_progress, main_timer.active)
+
+    if self.state.dual_wield then
+        self.ui.off_icon:Show()
+        self:UpdateIconDisplay(self.ui.off_icon, off_timer, off_progress, off_timer.active)
+    else
+        self.ui.off_icon:Hide()
+    end
+
     local red, green, blue, alpha
+    local min_remaining = main_remaining
 
-    self:TraceTimerTick(timer, progress, remaining, now)
+    if self.state.dual_wield then
+        min_remaining = math_min(main_remaining, off_remaining)
+    end
 
-    if timer.active then
-        if self.db.latency_warning and remaining <= self:GetLatencyThreshold() then
+    if main_timer.active or (self.state.dual_wield and off_timer.active) then
+        if self.db.latency_warning and min_remaining <= self:GetLatencyThreshold() then
             red, green, blue, alpha = self:GetColor("warning")
         else
             red, green, blue, alpha = self:GetColor("active")
         end
-
-        bar.text:SetText(string_format("%s %.1f", timer.label, remaining))
     else
         red, green, blue, alpha = self:GetColor("ready")
-        bar.text:SetText(timer.label)
     end
 
-    bar:SetStatusBarColor(red, green, blue, alpha)
-    bar:SetValue(progress)
-    bar.background:SetColorTexture(self:GetColor("background"))
+    local status_text
+    if self.state.dual_wield then
+        local main_value = main_timer.active and main_remaining or 0
+        local off_value = off_timer.active and off_remaining or 0
+        local sync_diff = math_abs(main_value - off_value)
+        status_text = string_format("MH %.1f   |   OH %.1f   |   DIFF %.1f", main_value, off_value, sync_diff)
+    else
+        local main_value = main_timer.active and main_remaining or 0
+        status_text = string_format("MH %.1f", main_value)
+    end
+
+    self.ui.sync_bar:SetStatusBarColor(red, green, blue, alpha)
+    self.ui.sync_bar:SetValue(1)
+    self.ui.sync_bar.background:SetColorTexture(self:GetColor("background"))
+    self.ui.sync_bar.text:SetText(status_text)
 end
 
 function ns:RefreshBars(force)
@@ -125,12 +178,8 @@ function ns:RefreshBars(force)
 
     local now = self:Now()
 
-    if force or self.ui.main_bar:IsShown() then
-        self:UpdateBarDisplay(self.ui.main_bar, self.state.timers.main, now)
-    end
-
-    if self.ui.off_bar:IsShown() then
-        self:UpdateBarDisplay(self.ui.off_bar, self.state.timers.off, now)
+    if force or self.ui.sync_bar:IsShown() then
+        self:UpdateSyncBarDisplay(now)
     end
 end
 
@@ -199,8 +248,23 @@ function ns:CreateUI()
         ns:ApplySettings()
     end)
 
-    frame.main_bar = create_bar(frame, "SwingPulseMainBar", self.state.timers.main.label)
-    frame.off_bar = create_bar(frame, "SwingPulseOffBar", self.state.timers.off.label)
+    frame.sync_bar = create_bar(frame, "SwingPulseSyncBar", "")
+    frame.sync_bar:SetValue(1)
+
+    local mid_marker = frame.sync_bar:CreateTexture(nil, "ARTWORK")
+    mid_marker:SetColorTexture(0.95, 0.95, 0.95, 0.95)
+    mid_marker:SetWidth(2)
+    frame.mid_marker = mid_marker
+
+    local main_icon = frame.sync_bar:CreateTexture(nil, "OVERLAY")
+    main_icon:SetTexture("Interface\\Icons\\INV_Sword_04")
+    main_icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    frame.main_icon = main_icon
+
+    local off_icon = frame.sync_bar:CreateTexture(nil, "OVERLAY")
+    off_icon:SetTexture("Interface\\Icons\\INV_Axe_17")
+    off_icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    frame.off_icon = off_icon
 
     self.ui = frame
     self:ApplySettings()
