@@ -9,6 +9,8 @@ ns.defaults = {
     locked = false,
     show_offhand = true,
     latency_warning = true,
+    compensate_latency = true,
+    trace_ticks = false,
     debug = false,
     color_preset = "ember",
     point = {
@@ -127,7 +129,7 @@ function ns:ToggleDebug()
 end
 
 function ns:PrintHelp()
-    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, colors <ember|tide|ash>, reset, debug")
+    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, colors <ember|tide|ash>, reset, debug, ticks")
 end
 
 function ns:RegisterSlashCommands()
@@ -205,6 +207,26 @@ function ns:RegisterSlashCommands()
 
         if command == "debug" then
             ns:ToggleDebug()
+            return
+        end
+
+        if command == "ticks" then
+            local mode = string.lower(args[2] or "")
+
+            if mode == "on" then
+                ns.db.trace_ticks = true
+                ns:Print("Tick trace enabled.")
+                return
+            end
+
+            if mode == "off" then
+                ns.db.trace_ticks = false
+                ns:Print("Tick trace disabled.")
+                return
+            end
+
+            ns.db.trace_ticks = not ns.db.trace_ticks
+            ns:Print(ns.db.trace_ticks and "Tick trace enabled." or "Tick trace disabled.")
             return
         end
 

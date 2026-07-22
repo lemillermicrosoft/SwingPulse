@@ -1,7 +1,7 @@
 ## Interface: 11508
 ## Title: SwingPulse
 ## Notes: Minimal melee swing timer with optional dual-wield tracking.
-## Author: GitHub Copilot
+## Author: GitHub Copilot c/o deehoc
 ## Version: 0.1.0
 ## SavedVariables: SwingPulseDB
 

@@ -33,6 +33,7 @@ ns.state = ns.state or {
 
 local math_max = math.max
 local math_min = math.min
+local math_floor = math.floor
 local pairs = pairs
 local table_unpack = unpack or table.unpack
 local type = type
@@ -103,6 +104,10 @@ function ns:DebugPrint(message)
     end
 end
 
+function ns:IsDebugEnabled()
+    return self.db and self.db.debug
+end
+
 function ns:Now()
     return GetTime() or 0
 end
@@ -116,6 +121,17 @@ function ns:GetLatencyThreshold()
     local threshold_ms = math_max(home_ms or 0, world_ms or 0)
 
     return self:Clamp(threshold_ms / 1000, 0.05, 0.40)
+end
+
+function ns:GetLatencyCompensation()
+    if not self.db or self.db.compensate_latency == false then
+        return 0
+    end
+
+    local _, _, home_ms, world_ms = GetNetStats()
+    local round_trip_ms = math_max(home_ms or 0, world_ms or 0)
+
+    return self:Clamp(round_trip_ms / 2000, 0, 0.20)
 end
 
 function ns:GetColor(key)
@@ -179,6 +195,7 @@ function ns:StartTimer(timer, duration, start_time)
     timer.start_time = start_time
     timer.duration = duration
     timer.expires_at = start_time + duration
+    timer.last_trace_bucket = nil
 
     self:RecountActiveTimers()
 end
@@ -210,6 +227,84 @@ function ns:GetTimerProgress(timer, now)
     return self:Clamp(progress, 0, 1), remaining
 end
 
+function ns:TraceTimerTick(timer, progress, remaining, now)
+    if not timer or not timer.active or not self:IsDebugEnabled() or not (self.db and self.db.trace_ticks) then
+        return
+    end
+
+    local trace_bucket = math_floor((remaining * 10) + 0.0001)
+
+    if timer.last_trace_bucket == trace_bucket then
+        return
+    end
+
+    timer.last_trace_bucket = trace_bucket
+    now = now or self:Now()
+    self:DebugPrint(string.format(
+        "tick %s t=%.3f progress=%.3f remaining=%.3f expires=%.3f",
+        timer.label,
+        now,
+        progress,
+        remaining,
+        timer.expires_at
+    ))
+end
+
+function ns:GetTimerDriftMs(timer, observed_time)
+    if not timer then
+        return nil
+    end
+
+    observed_time = observed_time or self:Now()
+    local reference_expire = timer.expires_at
+
+    if not reference_expire or reference_expire <= 0 then
+        return nil
+    end
+
+    return (observed_time - reference_expire) * 1000
+end
+
+function ns:RecordDriftSample(timer, drift_ms)
+    if not timer or not drift_ms then
+        return
+    end
+
+    local stats = timer.drift_stats
+    if not stats then
+        stats = {
+            count = 0,
+            sum = 0,
+            min = nil,
+            max = nil,
+        }
+        timer.drift_stats = stats
+    end
+
+    stats.count = stats.count + 1
+    stats.sum = stats.sum + drift_ms
+
+    if not stats.min or drift_ms < stats.min then
+        stats.min = drift_ms
+    end
+
+    if not stats.max or drift_ms > stats.max then
+        stats.max = drift_ms
+    end
+
+    if (stats.count % 5) == 0 then
+        local average = stats.sum / stats.count
+        self:DebugPrint(string.format(
+            "drift %s samples=%d avg=%.1fms min=%.1fms max=%.1fms",
+            timer.label,
+            stats.count,
+            average,
+            stats.min,
+            stats.max
+        ))
+    end
+end
+
 function ns:IsAnyTimerActive()
     return self.state.active_count > 0
 end
@@ -234,20 +329,18 @@ function ns:UpdateWeaponSpeeds()
     if self.UpdateBarVisibility then
         self:UpdateBarVisibility()
     end
-
-    self:DebugPrint(string.format("Weapon speeds updated: main=%.3f off=%s", main_timer.duration or 0, off_speed and string.format("%.3f", off_speed) or "n/a"))
 end
 
-function ns:RestartMainTimer()
-    self:StartTimer(self.state.timers.main, self.state.timers.main.duration)
+function ns:RestartMainTimer(start_time)
+    self:StartTimer(self.state.timers.main, self.state.timers.main.duration, start_time)
 
     if self.RefreshBars then
         self:RefreshBars(true)
     end
 end
 
-function ns:RestartOffTimer()
-    self:StartTimer(self.state.timers.off, self.state.timers.off.duration)
+function ns:RestartOffTimer(start_time)
+    self:StartTimer(self.state.timers.off, self.state.timers.off.duration, start_time)
 
     if self.RefreshBars then
         self:RefreshBars(true)

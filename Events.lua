@@ -5,6 +5,14 @@ local spell_name_api = C_Spell and C_Spell.GetSpellName or GetSpellInfo
 local SWING_CONSUME_SPELLS = {}
 local SWING_RESET_SPELLS = {}
 
+local function tostring_or_nil(value)
+    if value == nil then
+        return "nil"
+    end
+
+    return tostring(value)
+end
+
 local function register_spell_names(target, ids, fallback_names)
     local index
 
@@ -33,14 +41,41 @@ register_spell_names(SWING_RESET_SPELLS, { 1464 }, {
 })
 
 function ns:HandleSwingResolved(is_offhand)
+    local resolved_at = self:Now()
+    local start_time = resolved_at - self:GetLatencyCompensation()
+    local compensation = self:GetLatencyCompensation()
+    local timer = self.state.timers.main
+
+    if is_offhand and self.state.dual_wield then
+        timer = self.state.timers.off
+    end
+
+    local drift_ms = self:GetTimerDriftMs(timer, resolved_at)
+
+    self:RecordDriftSample(timer, drift_ms)
+
     self:UpdateWeaponSpeeds()
 
     if is_offhand and self.state.dual_wield then
-        self:RestartOffTimer()
+        self:DebugPrint(string.format(
+            "reset OH start=%.3f duration=%.3f compensation=%.3f driftMs=%s",
+            start_time,
+            self.state.timers.off.duration or 0,
+            compensation,
+            drift_ms and string.format("%.1f", drift_ms) or "n/a"
+        ))
+        self:RestartOffTimer(start_time)
         return
     end
 
-    self:RestartMainTimer()
+    self:DebugPrint(string.format(
+        "reset MH start=%.3f duration=%.3f compensation=%.3f driftMs=%s",
+        start_time,
+        self.state.timers.main.duration or 0,
+        compensation,
+        drift_ms and string.format("%.1f", drift_ms) or "n/a"
+    ))
+    self:RestartMainTimer(start_time)
 end
 
 function ns:HandleCombatLogEvent()
@@ -48,6 +83,29 @@ function ns:HandleCombatLogEvent()
 
     if source_guid ~= self.state.player_guid then
         return
+    end
+
+    if self:IsDebugEnabled() then
+        if subevent == "SWING_DAMAGE" then
+            self:DebugPrint(string.format(
+                "clog %s amount=%s offhand=%s school=%s absorbed=%s crit=%s glancing=%s",
+                subevent,
+                tostring_or_nil(arg1),
+                tostring_or_nil(arg10),
+                tostring_or_nil(arg3),
+                tostring_or_nil(arg7),
+                tostring_or_nil(arg8),
+                tostring_or_nil(arg9)
+            ))
+        elseif subevent == "SWING_MISSED" then
+            self:DebugPrint(string.format(
+                "clog %s miss=%s offhand=%s amountMissed=%s",
+                subevent,
+                tostring_or_nil(arg1),
+                tostring_or_nil(arg2),
+                tostring_or_nil(arg3)
+            ))
+        end
     end
 
     if subevent == "SWING_DAMAGE" then
@@ -62,13 +120,13 @@ function ns:HandleCombatLogEvent()
 
     if subevent == "SPELL_CAST_SUCCESS" and arg2 and SWING_RESET_SPELLS[arg2] then
         self:DebugPrint("Reset swing from spell cast: " .. arg2)
-        self:RestartMainTimer()
+        self:RestartMainTimer(self:Now() - self:GetLatencyCompensation())
         return
     end
 
     if (subevent == "SPELL_DAMAGE" or subevent == "SPELL_MISSED") and arg2 and SWING_CONSUME_SPELLS[arg2] then
         self:DebugPrint("Consumed swing with spell: " .. arg2)
-        self:RestartMainTimer()
+        self:RestartMainTimer(self:Now() - self:GetLatencyCompensation())
     end
 end
 

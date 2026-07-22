@@ -98,6 +98,8 @@ function ns:UpdateBarDisplay(bar, timer, now)
     local progress, remaining = self:GetTimerProgress(timer, now)
     local red, green, blue, alpha
 
+    self:TraceTimerTick(timer, progress, remaining, now)
+
     if timer.active then
         if self.db.latency_warning and remaining <= self:GetLatencyThreshold() then
             red, green, blue, alpha = self:GetColor("warning")
