@@ -15,10 +15,19 @@ SwingPulse is a minimal World of Warcraft melee swing timer addon with one prima
 - `/swingpulse scale <number>` sets the frame scale.
 - `/swingpulse colors <ember|tide|ash>` switches color presets.
 - `/swingpulse reset` restores default settings.
-- `/swingpulse debug` toggles verbose chat diagnostics.
+- `/swingpulse debug` toggles swing timing diagnostics in chat.
+- `/swingpulse ticks <on|off>` toggles high-frequency tick trace output.
 
 ## Notes
 
 - Main-hand swings are tracked from combat log swing events.
 - Off-hand tracking is enabled only while a valid off-hand attack speed is available.
 - Known on-next-swing abilities are treated as main-hand swing consumers, and Slam is treated as a swing reset signal.
+
+## Timing Validation
+
+- Enable diagnostics with `/swingpulse debug`.
+- For clean tests, use auto attacks only with no special abilities.
+- Review `reset ... driftMs=...` lines to verify per-swing alignment.
+- Review `drift ... samples=... avg=... min=... max=...` every 5 swings to see aggregate timing quality.
+- Disable noisy traces with `/swingpulse ticks off`.
