@@ -1,0 +1,11 @@
+## Interface: 11508
+## Title: SwingPulse
+## Notes: Minimal melee swing timer with optional dual-wield tracking.
+## Author: GitHub Copilot
+## Version: 0.1.0
+## SavedVariables: SwingPulseDB
+
+Core.lua
+Config.lua
+UI.lua
+Events.lua

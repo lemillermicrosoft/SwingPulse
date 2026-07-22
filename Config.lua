@@ -1,0 +1,215 @@
+local _, ns = ...
+
+ns.defaults = {
+    width = 220,
+    height = 18,
+    spacing = 6,
+    scale = 1,
+    alpha = 1,
+    locked = false,
+    show_offhand = true,
+    latency_warning = true,
+    debug = false,
+    color_preset = "ember",
+    point = {
+        x = 0,
+        y = -140,
+    },
+    colors = {
+        active = { 0.92, 0.67, 0.17, 1 },
+        ready = { 0.19, 0.79, 0.35, 1 },
+        warning = { 0.90, 0.26, 0.18, 1 },
+        background = { 0.07, 0.07, 0.09, 0.72 },
+    },
+}
+
+ns.color_presets = {
+    ember = {
+        active = { 0.92, 0.67, 0.17, 1 },
+        ready = { 0.19, 0.79, 0.35, 1 },
+        warning = { 0.90, 0.26, 0.18, 1 },
+        background = { 0.07, 0.07, 0.09, 0.72 },
+    },
+    tide = {
+        active = { 0.18, 0.66, 0.88, 1 },
+        ready = { 0.22, 0.82, 0.48, 1 },
+        warning = { 0.95, 0.53, 0.18, 1 },
+        background = { 0.05, 0.08, 0.11, 0.72 },
+    },
+    ash = {
+        active = { 0.78, 0.78, 0.82, 1 },
+        ready = { 0.44, 0.83, 0.57, 1 },
+        warning = { 0.88, 0.33, 0.29, 1 },
+        background = { 0.09, 0.09, 0.10, 0.78 },
+    },
+}
+
+local function tokenize(message)
+    local args = {}
+
+    for token in string.gmatch(message or "", "%S+") do
+        args[#args + 1] = token
+    end
+
+    return args
+end
+
+function ns:InitializeDatabase()
+    if type(_G.SwingPulseDB) ~= "table" then
+        _G.SwingPulseDB = {}
+    end
+
+    self.db = _G.SwingPulseDB
+    self:MergeDefaults(self.db, self.defaults)
+
+    if not self.color_presets[self.db.color_preset] then
+        self.db.color_preset = self.defaults.color_preset
+    end
+
+    self:ApplyColorPreset(self.db.color_preset, true)
+end
+
+function ns:ApplyColorPreset(preset_name, silent)
+    local preset = self.color_presets[preset_name]
+    if not preset then
+        if not silent then
+            self:Print("Unknown color preset: " .. tostring(preset_name))
+        end
+
+        return false
+    end
+
+    self.db.color_preset = preset_name
+    self.db.colors = self:CloneTable(preset)
+
+    if self.ApplyAllSettings then
+        self:ApplyAllSettings()
+    end
+
+    if not silent then
+        self:Print("Color preset set to " .. preset_name .. ".")
+    end
+
+    return true
+end
+
+function ns:ResetSettings()
+    _G.SwingPulseDB = self:CloneTable(self.defaults)
+    self.db = _G.SwingPulseDB
+    self:ApplyColorPreset(self.db.color_preset, true)
+    self:ApplyAllSettings()
+    self:UpdateWeaponSpeeds()
+    self:Print("Settings reset to defaults.")
+end
+
+function ns:SetLocked(locked)
+    self.db.locked = not not locked
+    self:ApplyAllSettings()
+    self:Print(self.db.locked and "Frame locked." or "Frame unlocked. Drag with left mouse button to move.")
+end
+
+function ns:SetSize(width, height)
+    self.db.width = self:Clamp(width, 120, 480)
+    self.db.height = self:Clamp(height, 10, 40)
+    self:ApplyAllSettings()
+    self:Print(string.format("Size set to %dx%d.", self.db.width, self.db.height))
+end
+
+function ns:SetScale(scale)
+    self.db.scale = self:Clamp(scale, 0.75, 2.0)
+    self:ApplyAllSettings()
+    self:Print(string.format("Scale set to %.2f.", self.db.scale))
+end
+
+function ns:ToggleDebug()
+    self.db.debug = not self.db.debug
+    self:Print(self.db.debug and "Debug output enabled." or "Debug output disabled.")
+end
+
+function ns:PrintHelp()
+    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, colors <ember|tide|ash>, reset, debug")
+end
+
+function ns:RegisterSlashCommands()
+    if self.slash_registered then
+        return
+    end
+
+    SLASH_SWINGPULSE1 = "/swingpulse"
+    SLASH_SWINGPULSE2 = "/sp"
+    SlashCmdList.SWINGPULSE = function(message)
+        local args = tokenize(message)
+        local command = string.lower(args[1] or "")
+
+        if command == "" or command == "help" then
+            ns:PrintHelp()
+            return
+        end
+
+        if command == "lock" then
+            if args[2] == "on" then
+                ns:SetLocked(true)
+            elseif args[2] == "off" then
+                ns:SetLocked(false)
+            else
+                ns:SetLocked(not ns.db.locked)
+            end
+
+            return
+        end
+
+        if command == "unlock" then
+            ns:SetLocked(false)
+            return
+        end
+
+        if command == "size" then
+            local width = tonumber(args[2])
+            local height = tonumber(args[3])
+
+            if not width or not height then
+                ns:Print("Usage: /swingpulse size <width> <height>")
+                return
+            end
+
+            ns:SetSize(width, height)
+            return
+        end
+
+        if command == "scale" then
+            local scale = tonumber(args[2])
+            if not scale then
+                ns:Print("Usage: /swingpulse scale <number>")
+                return
+            end
+
+            ns:SetScale(scale)
+            return
+        end
+
+        if command == "colors" then
+            local preset_name = string.lower(args[2] or "")
+            if preset_name == "" then
+                ns:Print("Usage: /swingpulse colors <ember|tide|ash>")
+                return
+            end
+
+            ns:ApplyColorPreset(preset_name, false)
+            return
+        end
+
+        if command == "reset" then
+            ns:ResetSettings()
+            return
+        end
+
+        if command == "debug" then
+            ns:ToggleDebug()
+            return
+        end
+
+        ns:PrintHelp()
+    end
+
+    self.slash_registered = true
+end
