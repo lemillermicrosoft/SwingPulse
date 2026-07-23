@@ -1,10 +1,10 @@
 # SwingPulse Addon Description
 
-SwingPulse is a minimal melee swing timer for World of Warcraft players who want clear swing cadence without UI clutter. It provides a compact, movable swing bar for main-hand attacks and automatically adds an off-hand bar when dual-wielding is active.
+SwingPulse is a minimal melee swing timer for World of Warcraft players who want clear swing cadence without UI clutter. It provides a compact, movable swing bar for main-hand attacks and automatically adds off-hand tracking when dual-wielding is active.
 
 The addon is built for practical combat feedback:
 
-- Clean bar visuals with ready, active, and warning color states.
+- Sync-aware bar visuals with practical dual-wield timing states.
 - Drag-to-move placement with lock/unlock control.
 - Slash-command configuration with immediate persistence.
 - Lightweight runtime behavior designed to avoid heavy per-frame work.
@@ -13,6 +13,10 @@ The addon is built for practical combat feedback:
 
 - Main-hand auto attack swing tracking.
 - Optional off-hand tracking when dual-wield is detected.
+- Dual-wield sync state based on MH/OH delta within the 0.5s default sync window (configurable).
+- Lead-direction cue for stagger awareness (MH first or OH first).
+- High-visibility midpoint marker (line, glow, MID label) to support macro timing practice.
+- Moving MH/OH markers with player weapon icon mode and spark fallback.
 - Saved settings for position, size, scale, color preset, lock state, and diagnostics options.
 - Color presets: ember, tide, ash.
 - Optional in-chat timing diagnostics for calibration and testing.
@@ -35,6 +39,8 @@ The addon is built for practical combat feedback:
 
 - `/swingpulse size <width> <height>` sets bar dimensions.
 - `/swingpulse scale <number>` changes frame scale.
+- `/swingpulse sync <seconds>` sets the sync window (clamped 0.05-1.00, default 0.50).
+- `/swingpulse icon <weapon|spark>` switches marker style.
 - `/swingpulse colors <ember|tide|ash>` applies a color preset.
 - `/swingpulse reset` restores defaults.
 

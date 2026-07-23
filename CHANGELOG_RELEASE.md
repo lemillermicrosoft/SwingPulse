@@ -1,30 +1,31 @@
-# SwingPulse 0.1.4
+# SwingPulse 0.2.0
 
 Release date: 2026-07-23
 
 ## Summary
 
-This release focuses on timing accuracy validation, low-noise diagnostics, and quality-of-life command updates.
+This release focuses on practical sync/stagger play: clear 0.5s sync feedback, better moving markers, and explicit midpoint guidance for macro timing.
 
 ## Added
 
-- Live debug traces for swing combat events and reset timing points.
-- Drift measurement (`driftMs`) showing predicted-vs-observed swing alignment per reset.
-- Rolling drift summary every 5 swings with average, min, and max values.
-- Tick-trace toggle command: `/swingpulse ticks <on|off>`.
+- Configurable sync window command: `/swingpulse sync <seconds>`.
+- Marker style command: `/swingpulse icon <weapon|spark>`.
+- Weapon icon marker mode with MH/OH overlays and spark fallback.
+- High-visibility midpoint indicator (line + glow + MID label).
 
 ## Changed
 
-- Improved timer restart behavior with bounded latency compensation.
-- Reduced debug chat noise by default while preserving high-value traces.
-- Updated command/help documentation to include tick trace controls.
+- Dual-wield green state now reflects true sync logic: MH/OH within the configured window (default 0.5s), regardless of which hand lands first.
+- Dual-wield status text now includes SYNC state, lead direction (MH first/OH first), and DIFF with higher precision.
+- Marker textures now refresh on load and equipment/inventory changes.
 
 ## Testing Notes
 
-- Main-hand alignment validated on both slower and faster weapon speeds.
-- Typical measured drift remained near zero on average, with occasional combat outliers expected in live play.
+- Verify dual-wield green state with `/swingpulse sync 0.5` and ensure green appears for any MH/OH pair within 0.5s.
+- Verify midpoint visibility is clear enough to time the resync tap around midpoint.
+- Verify `/swingpulse icon weapon` and `/swingpulse icon spark` both render correctly.
 
 ## Known Limits
 
-- Extreme one-off drift spikes can occur during crowd-control movement, target pathing, or delayed combat log delivery.
-- This release does not include a full graphical configuration panel by design.
+- Weapon icon mode depends on equipped weapon textures; spark fallback is used when icon data is unavailable.
+- This release keeps slash-command configuration by design and does not add a full options panel.
