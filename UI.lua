@@ -3,6 +3,7 @@ local _, ns = ...
 local string_format = string.format
 local math_min = math.min
 local math_abs = math.abs
+local math_max = math.max
 
 local function create_bar(parent, global_name, label)
     local bar = CreateFrame("StatusBar", global_name, parent)
@@ -79,9 +80,10 @@ function ns:UpdateBarVisibility()
     self.ui.sync_bar:SetPoint("TOP", self.ui, "TOP", 0, 0)
     self.ui.sync_bar:SetSize(width, height)
 
-    local icon_size = height + 8
-    self.ui.main_icon:SetSize(icon_size, icon_size)
-    self.ui.off_icon:SetSize(icon_size, icon_size)
+    local spark_width = math_max(18, math.floor(height * 1.1))
+    local spark_height = height + 12
+    self.ui.main_icon:SetSize(spark_width, spark_height)
+    self.ui.off_icon:SetSize(spark_width, spark_height)
 
     self.ui.mid_marker:ClearAllPoints()
     self.ui.mid_marker:SetPoint("TOP", self.ui.sync_bar, "TOP", 0, 0)
@@ -108,11 +110,18 @@ function ns:UpdateIconDisplay(icon, timer, progress, is_active)
     icon:ClearAllPoints()
     icon:SetPoint("CENTER", self.ui.sync_bar, "LEFT", offset, 0)
 
+    local red = icon.spark_red or 1
+    local green = icon.spark_green or 1
+    local blue = icon.spark_blue or 1
+    local alpha
+
     if is_active then
-        icon:SetVertexColor(1, 1, 1, 1)
+        alpha = icon.spark_active_alpha or 1
     else
-        icon:SetVertexColor(0.68, 0.68, 0.68, 0.92)
+        alpha = icon.spark_inactive_alpha or 0.65
     end
+
+    icon:SetVertexColor(red, green, blue, alpha)
 end
 
 function ns:UpdateSyncBarDisplay(now)
@@ -257,13 +266,23 @@ function ns:CreateUI()
     frame.mid_marker = mid_marker
 
     local main_icon = frame.sync_bar:CreateTexture(nil, "OVERLAY")
-    main_icon:SetTexture("Interface\\Icons\\INV_Sword_04")
-    main_icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    main_icon:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
+    main_icon:SetBlendMode("ADD")
+    main_icon.spark_red = 1.00
+    main_icon.spark_green = 0.94
+    main_icon.spark_blue = 0.20
+    main_icon.spark_active_alpha = 0.98
+    main_icon.spark_inactive_alpha = 0.75
     frame.main_icon = main_icon
 
     local off_icon = frame.sync_bar:CreateTexture(nil, "OVERLAY")
-    off_icon:SetTexture("Interface\\Icons\\INV_Axe_17")
-    off_icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    off_icon:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
+    off_icon:SetBlendMode("ADD")
+    off_icon.spark_red = 0.42
+    off_icon.spark_green = 0.70
+    off_icon.spark_blue = 1.00
+    off_icon.spark_active_alpha = 0.58
+    off_icon.spark_inactive_alpha = 0.35
     frame.off_icon = off_icon
 
     self.ui = frame
