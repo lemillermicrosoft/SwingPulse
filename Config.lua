@@ -15,6 +15,9 @@ ns.defaults = {
     sync_window_seconds = 0.50,
     icon_mode = "weapon",
     color_preset = "ember",
+    show_mh_text = false,
+    show_oh_text = false,
+    show_mid_text = false,
     point = {
         x = 0,
         y = -140,
@@ -158,7 +161,55 @@ function ns:SetIconMode(mode)
 end
 
 function ns:PrintHelp()
-    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, sync <seconds>, icon <weapon|spark>, colors <ember|tide|ash>, reset, debug, ticks, config")
+    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, sync <seconds>, icon <weapon|spark>, colors <ember|tide|ash>, text <mh|oh|mid|all> [on|off|toggle], reset, debug, ticks, config")
+end
+
+function ns:SetTextVisibility(target, mode)
+    target = string.lower(tostring(target or ""))
+    mode = string.lower(tostring(mode or "toggle"))
+
+    if target ~= "mh" and target ~= "oh" and target ~= "mid" and target ~= "all" then
+        self:Print("Usage: /swingpulse text <mh|oh|mid|all> [on|off|toggle]")
+        return
+    end
+
+    if mode ~= "on" and mode ~= "off" and mode ~= "toggle" then
+        self:Print("Usage: /swingpulse text <mh|oh|mid|all> [on|off|toggle]")
+        return
+    end
+
+    local apply_mode = function(current)
+        if mode == "on" then
+            return true
+        end
+
+        if mode == "off" then
+            return false
+        end
+
+        return not current
+    end
+
+    if target == "mh" or target == "all" then
+        self.db.show_mh_text = apply_mode(self.db.show_mh_text)
+    end
+
+    if target == "oh" or target == "all" then
+        self.db.show_oh_text = apply_mode(self.db.show_oh_text)
+    end
+
+    if target == "mid" or target == "all" then
+        self.db.show_mid_text = apply_mode(self.db.show_mid_text)
+    end
+
+    self:ApplyAllSettings()
+
+    self:Print(string.format(
+        "Text labels - MH: %s, OH: %s, MID: %s",
+        self.db.show_mh_text and "on" or "off",
+        self.db.show_oh_text and "on" or "off",
+        self.db.show_mid_text and "on" or "off"
+    ))
 end
 
 function ns:RegisterSlashCommands()
@@ -248,6 +299,19 @@ function ns:RegisterSlashCommands()
             end
 
             ns:ApplyColorPreset(preset_name, false)
+            return
+        end
+
+        if command == "text" then
+            local target = string.lower(args[2] or "")
+            local mode = string.lower(args[3] or "toggle")
+
+            if target == "" then
+                ns:Print("Usage: /swingpulse text <mh|oh|mid|all> [on|off|toggle]")
+                return
+            end
+
+            ns:SetTextVisibility(target, mode)
             return
         end
 

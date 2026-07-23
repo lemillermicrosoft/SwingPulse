@@ -237,15 +237,41 @@ function ns:UpdateBarVisibility()
 
     self.ui:SetSize(width, height)
 
+    self:UpdateTextVisibility()
+
     if self.state.dual_wield then
         self.ui.off_icon:Show()
-        if self.ui.off_icon_label then
-            self.ui.off_icon_label:Show()
-        end
     else
         self.ui.off_icon:Hide()
-        if self.ui.off_icon_label then
+    end
+end
+
+function ns:UpdateTextVisibility()
+    if not self.ui or not self.db then
+        return
+    end
+
+    if self.ui.main_icon_label then
+        if self.db.show_mh_text then
+            self.ui.main_icon_label:Show()
+        else
+            self.ui.main_icon_label:Hide()
+        end
+    end
+
+    if self.ui.off_icon_label then
+        if self.state.dual_wield and self.db.show_oh_text then
+            self.ui.off_icon_label:Show()
+        else
             self.ui.off_icon_label:Hide()
+        end
+    end
+
+    if self.ui.mid_label then
+        if self.db.show_mid_text then
+            self.ui.mid_label:Show()
+        else
+            self.ui.mid_label:Hide()
         end
     end
 end
@@ -293,16 +319,12 @@ function ns:UpdateSyncBarDisplay(now)
 
     if self.state.dual_wield then
         self.ui.off_icon:Show()
-        if self.ui.off_icon_label then
-            self.ui.off_icon_label:Show()
-        end
         self:UpdateIconDisplay(self.ui.off_icon, off_timer, off_progress, off_timer.active)
     else
         self.ui.off_icon:Hide()
-        if self.ui.off_icon_label then
-            self.ui.off_icon_label:Hide()
-        end
     end
+
+    self:UpdateTextVisibility()
 
     local red, green, blue, alpha
     local min_remaining = main_remaining
@@ -330,6 +352,8 @@ function ns:UpdateSyncBarDisplay(now)
     end
 
     local status_text
+    local mh_prefix = self.db.show_mh_text and "MH " or ""
+    local oh_prefix = self.db.show_oh_text and "OH " or ""
     if self.state.dual_wield then
         local main_value = main_timer.active and main_remaining or 0
         local off_value = off_timer.active and off_remaining or 0
@@ -348,8 +372,10 @@ function ns:UpdateSyncBarDisplay(now)
         end
 
         status_text = string_format(
-            "MH %.2f  |  OH %.2f  |  DIFF %.2f  |  %s  |  %s",
+            "%s%.2f  |  %s%.2f  |  DIFF %.2f  |  %s  |  %s",
+            mh_prefix,
             main_value,
+            oh_prefix,
             off_value,
             shown_diff,
             sync_label,
@@ -357,7 +383,7 @@ function ns:UpdateSyncBarDisplay(now)
         )
     else
         local main_value = main_timer.active and main_remaining or 0
-        status_text = string_format("MH %.2f", main_value)
+        status_text = string_format("%s%.2f", mh_prefix, main_value)
     end
 
     self.ui.sync_bar:SetStatusBarColor(red, green, blue, alpha)
@@ -438,6 +464,9 @@ function ns:RefreshConfigPanel()
     panel.lock_checkbox:SetChecked(self.db.locked)
     panel.debug_checkbox:SetChecked(self.db.debug)
     panel.ticks_checkbox:SetChecked(self.db.trace_ticks)
+    panel.mh_text_checkbox:SetChecked(self.db.show_mh_text)
+    panel.oh_text_checkbox:SetChecked(self.db.show_oh_text)
+    panel.mid_text_checkbox:SetChecked(self.db.show_mid_text)
 
     panel.width_slider:SetValue(self.db.width)
     panel.width_slider.value_text:SetText(string_format("%.0f", self.db.width))
@@ -467,7 +496,7 @@ function ns:CreateConfigPanel()
     end
 
     local panel = CreateFrame("Frame", "SwingPulseConfigPanel", UIParent)
-    panel:SetSize(360, 470)
+    panel:SetSize(360, 548)
     panel:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     panel:SetFrameStrata("DIALOG")
     panel:SetToplevel(true)
@@ -549,7 +578,37 @@ function ns:CreateConfigPanel()
         ns.db.trace_ticks = current:GetChecked() and true or false
     end)
 
-    panel.width_slider = create_slider(panel, "Bar Width", 120, 480, 1, 18, -154)
+    panel.mh_text_checkbox = create_checkbox(panel, "Show MH Text", "TOPLEFT", 16, -136)
+    panel.mh_text_checkbox:SetScript("OnClick", function(current)
+        if panel.syncing then
+            return
+        end
+
+        ns.db.show_mh_text = current:GetChecked() and true or false
+        ns:ApplyAllSettings()
+    end)
+
+    panel.oh_text_checkbox = create_checkbox(panel, "Show OH Text", "TOPLEFT", 16, -162)
+    panel.oh_text_checkbox:SetScript("OnClick", function(current)
+        if panel.syncing then
+            return
+        end
+
+        ns.db.show_oh_text = current:GetChecked() and true or false
+        ns:ApplyAllSettings()
+    end)
+
+    panel.mid_text_checkbox = create_checkbox(panel, "Show MID Text", "TOPLEFT", 16, -188)
+    panel.mid_text_checkbox:SetScript("OnClick", function(current)
+        if panel.syncing then
+            return
+        end
+
+        ns.db.show_mid_text = current:GetChecked() and true or false
+        ns:ApplyAllSettings()
+    end)
+
+    panel.width_slider = create_slider(panel, "Bar Width", 120, 480, 1, 18, -232)
     panel.width_slider:SetScript("OnValueChanged", function(current, value)
         local rounded = math_floor(value + 0.5)
         current.value_text:SetText(string_format("%.0f", rounded))
@@ -562,7 +621,7 @@ function ns:CreateConfigPanel()
         ns:ApplyAllSettings()
     end)
 
-    panel.height_slider = create_slider(panel, "Bar Height", 10, 40, 1, 18, -210)
+    panel.height_slider = create_slider(panel, "Bar Height", 10, 40, 1, 18, -288)
     panel.height_slider:SetScript("OnValueChanged", function(current, value)
         local rounded = math_floor(value + 0.5)
         current.value_text:SetText(string_format("%.0f", rounded))
@@ -575,7 +634,7 @@ function ns:CreateConfigPanel()
         ns:ApplyAllSettings()
     end)
 
-    panel.scale_slider = create_slider(panel, "Frame Scale", 0.75, 2.0, 0.01, 18, -266)
+    panel.scale_slider = create_slider(panel, "Frame Scale", 0.75, 2.0, 0.01, 18, -344)
     panel.scale_slider:SetScript("OnValueChanged", function(current, value)
         local rounded = math_floor((value * 100) + 0.5) / 100
         current.value_text:SetText(string_format("%.2f", rounded))
@@ -588,7 +647,7 @@ function ns:CreateConfigPanel()
         ns:ApplyAllSettings()
     end)
 
-    panel.sync_slider = create_slider(panel, "Sync Window", 0.05, 1.0, 0.01, 18, -320)
+    panel.sync_slider = create_slider(panel, "Sync Window", 0.05, 1.0, 0.01, 18, -398)
     panel.sync_slider:SetScript("OnValueChanged", function(current, value)
         local rounded = math_floor((value * 100) + 0.5) / 100
         current.value_text:SetText(string_format("%.2fs", rounded))
@@ -601,7 +660,7 @@ function ns:CreateConfigPanel()
         ns:RefreshBars(true)
     end)
 
-    panel.icon_dropdown = create_dropdown(panel, "SwingPulseIconModeDropDown", "Marker Style", 16, -372, 128)
+    panel.icon_dropdown = create_dropdown(panel, "SwingPulseIconModeDropDown", "Marker Style", 16, -450, 128)
     UIDropDownMenu_Initialize(panel.icon_dropdown, function(current)
         local options = {
             { text = "Weapon", value = "weapon" },
@@ -628,7 +687,7 @@ function ns:CreateConfigPanel()
         end
     end)
 
-    panel.colors_dropdown = create_dropdown(panel, "SwingPulseColorPresetDropDown", "Color Preset", 182, -372, 128)
+    panel.colors_dropdown = create_dropdown(panel, "SwingPulseColorPresetDropDown", "Color Preset", 182, -450, 128)
     UIDropDownMenu_Initialize(panel.colors_dropdown, function(current)
         local options = {
             { text = "Ember", value = "ember" },
