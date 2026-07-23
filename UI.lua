@@ -4,6 +4,77 @@ local string_format = string.format
 local math_min = math.min
 local math_abs = math.abs
 local math_max = math.max
+local math_floor = math.floor
+
+local MAIN_HAND_SLOT = INVSLOT_MAINHAND or 16
+local OFF_HAND_SLOT = INVSLOT_OFFHAND or 17
+local SPARK_TEXTURE = "Interface\\CastingBar\\UI-CastingBar-Spark"
+
+function ns:GetMarkerIconMode()
+    if not self.db then
+        return "weapon"
+    end
+
+    local mode = string.lower(tostring(self.db.icon_mode or "weapon"))
+    if mode ~= "weapon" and mode ~= "spark" then
+        return "weapon"
+    end
+
+    return mode
+end
+
+function ns:GetSyncWindowSeconds()
+    if not self.db then
+        return 0.50
+    end
+
+    local window = self:Clamp(self.db.sync_window_seconds or 0.50, 0.05, 1.00)
+    self.db.sync_window_seconds = window
+    return window
+end
+
+function ns:GetWeaponIconTexture(slot_id)
+    return GetInventoryItemTexture("player", slot_id)
+end
+
+function ns:ApplyMarkerTexture(icon, slot_id, tint)
+    if not icon then
+        return
+    end
+
+    local mode = self:GetMarkerIconMode()
+    local texture = nil
+
+    if mode == "weapon" then
+        texture = self:GetWeaponIconTexture(slot_id)
+    end
+
+    if texture then
+        icon:SetTexture(texture)
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        icon:SetBlendMode("ADD")
+    else
+        icon:SetTexture(SPARK_TEXTURE)
+        icon:SetTexCoord(0, 1, 0, 1)
+        icon:SetBlendMode("ADD")
+    end
+
+    icon.spark_red = tint[1]
+    icon.spark_green = tint[2]
+    icon.spark_blue = tint[3]
+    icon.spark_active_alpha = tint[4]
+    icon.spark_inactive_alpha = tint[5]
+end
+
+function ns:RefreshIconTextures()
+    if not self.ui then
+        return
+    end
+
+    self:ApplyMarkerTexture(self.ui.main_icon, MAIN_HAND_SLOT, { 1.00, 0.94, 0.20, 0.98, 0.75 })
+    self:ApplyMarkerTexture(self.ui.off_icon, OFF_HAND_SLOT, { 0.42, 0.70, 1.00, 0.82, 0.48 })
+    self:UpdateBarVisibility()
+end
 
 local function create_bar(parent, global_name, label)
     local bar = CreateFrame("StatusBar", global_name, parent)
@@ -80,21 +151,45 @@ function ns:UpdateBarVisibility()
     self.ui.sync_bar:SetPoint("TOP", self.ui, "TOP", 0, 0)
     self.ui.sync_bar:SetSize(width, height)
 
-    local spark_width = math_max(18, math.floor(height * 1.1))
-    local spark_height = height + 12
-    self.ui.main_icon:SetSize(spark_width, spark_height)
-    self.ui.off_icon:SetSize(spark_width, spark_height)
+    local icon_mode = self:GetMarkerIconMode()
+    if icon_mode == "weapon" then
+        local icon_size = math_max(22, math_floor(height * 1.35))
+        self.ui.main_icon:SetSize(icon_size, icon_size)
+        self.ui.off_icon:SetSize(icon_size, icon_size)
+    else
+        local spark_width = math_max(18, math_floor(height * 1.1))
+        local spark_height = height + 12
+        self.ui.main_icon:SetSize(spark_width, spark_height)
+        self.ui.off_icon:SetSize(spark_width, spark_height)
+    end
 
     self.ui.mid_marker:ClearAllPoints()
     self.ui.mid_marker:SetPoint("TOP", self.ui.sync_bar, "TOP", 0, 0)
     self.ui.mid_marker:SetPoint("BOTTOM", self.ui.sync_bar, "BOTTOM", 0, 0)
 
+    if self.ui.mid_marker_glow then
+        self.ui.mid_marker_glow:ClearAllPoints()
+        self.ui.mid_marker_glow:SetPoint("TOP", self.ui.sync_bar, "TOP", 0, 1)
+        self.ui.mid_marker_glow:SetPoint("BOTTOM", self.ui.sync_bar, "BOTTOM", 0, -1)
+    end
+
+    if self.ui.mid_label then
+        self.ui.mid_label:ClearAllPoints()
+        self.ui.mid_label:SetPoint("BOTTOM", self.ui.sync_bar, "TOP", 0, 2)
+    end
+
     self.ui:SetSize(width, height)
 
     if self.state.dual_wield then
         self.ui.off_icon:Show()
+        if self.ui.off_icon_label then
+            self.ui.off_icon_label:Show()
+        end
     else
         self.ui.off_icon:Hide()
+        if self.ui.off_icon_label then
+            self.ui.off_icon_label:Hide()
+        end
     end
 end
 
@@ -141,24 +236,31 @@ function ns:UpdateSyncBarDisplay(now)
 
     if self.state.dual_wield then
         self.ui.off_icon:Show()
+        if self.ui.off_icon_label then
+            self.ui.off_icon_label:Show()
+        end
         self:UpdateIconDisplay(self.ui.off_icon, off_timer, off_progress, off_timer.active)
     else
         self.ui.off_icon:Hide()
+        if self.ui.off_icon_label then
+            self.ui.off_icon_label:Hide()
+        end
     end
 
     local red, green, blue, alpha
     local min_remaining = main_remaining
     local dual_active = self.state.dual_wield and main_timer.active and off_timer.active
     local sync_diff = dual_active and math_abs(main_remaining - off_remaining) or nil
-    local sync_window = 0.08
+    local sync_window = self:GetSyncWindowSeconds()
+    local is_synced = dual_active and sync_diff and sync_diff <= sync_window
 
     if self.state.dual_wield then
         min_remaining = math_min(main_remaining, off_remaining)
     end
 
-    if dual_active and sync_diff <= sync_window then
+    if is_synced then
         red, green, blue, alpha = self:GetColor("ready")
-    elseif dual_active and main_remaining > off_remaining then
+    elseif dual_active then
         red, green, blue, alpha = self:GetColor("warning")
     elseif main_timer.active or (self.state.dual_wield and off_timer.active) then
         if self.db.latency_warning and min_remaining <= self:GetLatencyThreshold() then
@@ -175,10 +277,30 @@ function ns:UpdateSyncBarDisplay(now)
         local main_value = main_timer.active and main_remaining or 0
         local off_value = off_timer.active and off_remaining or 0
         local shown_diff = sync_diff or math_abs(main_value - off_value)
-        status_text = string_format("MH %.1f   |   OH %.1f   |   DIFF %.1f", main_value, off_value, shown_diff)
+        local sync_label = is_synced and "SYNC OK" or "SYNC OUT"
+        local direction_label = "DIR --"
+
+        if dual_active then
+            if main_remaining < off_remaining then
+                direction_label = "DIR MH first"
+            elseif main_remaining > off_remaining then
+                direction_label = "DIR OH first"
+            else
+                direction_label = "DIR even"
+            end
+        end
+
+        status_text = string_format(
+            "MH %.2f  |  OH %.2f  |  DIFF %.2f  |  %s  |  %s",
+            main_value,
+            off_value,
+            shown_diff,
+            sync_label,
+            direction_label
+        )
     else
         local main_value = main_timer.active and main_remaining or 0
-        status_text = string_format("MH %.1f", main_value)
+        status_text = string_format("MH %.2f", main_value)
     end
 
     self.ui.sync_bar:SetStatusBarColor(red, green, blue, alpha)
@@ -267,13 +389,25 @@ function ns:CreateUI()
     frame.sync_bar = create_bar(frame, "SwingPulseSyncBar", "")
     frame.sync_bar:SetValue(1)
 
-    local mid_marker = frame.sync_bar:CreateTexture(nil, "ARTWORK")
-    mid_marker:SetColorTexture(0.95, 0.95, 0.95, 0.95)
-    mid_marker:SetWidth(2)
+    local mid_marker_glow = frame.sync_bar:CreateTexture(nil, "ARTWORK")
+    mid_marker_glow:SetColorTexture(1.00, 1.00, 1.00, 0.30)
+    mid_marker_glow:SetWidth(6)
+    frame.mid_marker_glow = mid_marker_glow
+
+    local mid_marker = frame.sync_bar:CreateTexture(nil, "OVERLAY")
+    mid_marker:SetColorTexture(1.00, 1.00, 1.00, 0.98)
+    mid_marker:SetWidth(3)
     frame.mid_marker = mid_marker
 
+    local mid_label = frame.sync_bar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    mid_label:SetText("MID")
+    mid_label:SetTextColor(1, 1, 1, 0.92)
+    mid_label:SetShadowOffset(1, -1)
+    mid_label:SetShadowColor(0, 0, 0, 1)
+    frame.mid_label = mid_label
+
     local main_icon = frame.sync_bar:CreateTexture(nil, "OVERLAY")
-    main_icon:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
+    main_icon:SetTexture(SPARK_TEXTURE)
     main_icon:SetBlendMode("ADD")
     main_icon.spark_red = 1.00
     main_icon.spark_green = 0.94
@@ -282,8 +416,16 @@ function ns:CreateUI()
     main_icon.spark_inactive_alpha = 0.75
     frame.main_icon = main_icon
 
+    local main_icon_label = frame.sync_bar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    main_icon_label:SetPoint("CENTER", main_icon, "CENTER", 0, 0)
+    main_icon_label:SetText("MH")
+    main_icon_label:SetTextColor(1, 1, 1, 0.95)
+    main_icon_label:SetShadowOffset(1, -1)
+    main_icon_label:SetShadowColor(0, 0, 0, 1)
+    frame.main_icon_label = main_icon_label
+
     local off_icon = frame.sync_bar:CreateTexture(nil, "OVERLAY")
-    off_icon:SetTexture("Interface\\CastingBar\\UI-CastingBar-Spark")
+    off_icon:SetTexture(SPARK_TEXTURE)
     off_icon:SetBlendMode("ADD")
     off_icon.spark_red = 0.42
     off_icon.spark_green = 0.70
@@ -292,7 +434,16 @@ function ns:CreateUI()
     off_icon.spark_inactive_alpha = 0.35
     frame.off_icon = off_icon
 
+    local off_icon_label = frame.sync_bar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    off_icon_label:SetPoint("CENTER", off_icon, "CENTER", 0, 0)
+    off_icon_label:SetText("OH")
+    off_icon_label:SetTextColor(1, 1, 1, 0.95)
+    off_icon_label:SetShadowOffset(1, -1)
+    off_icon_label:SetShadowColor(0, 0, 0, 1)
+    frame.off_icon_label = off_icon_label
+
     self.ui = frame
+    self:RefreshIconTextures()
     self:ApplySettings()
     self:RefreshBars(true)
 end

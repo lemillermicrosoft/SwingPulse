@@ -12,6 +12,8 @@ ns.defaults = {
     compensate_latency = true,
     trace_ticks = false,
     debug = false,
+    sync_window_seconds = 0.50,
+    icon_mode = "weapon",
     color_preset = "ember",
     point = {
         x = 0,
@@ -128,8 +130,35 @@ function ns:ToggleDebug()
     self:Print(self.db.debug and "Debug output enabled." or "Debug output disabled.")
 end
 
+function ns:SetSyncWindow(seconds)
+    self.db.sync_window_seconds = self:Clamp(seconds, 0.05, 1.00)
+
+    if self.RefreshBars then
+        self:RefreshBars(true)
+    end
+
+    self:Print(string.format("Sync window set to %.2fs.", self.db.sync_window_seconds))
+end
+
+function ns:SetIconMode(mode)
+    mode = string.lower(tostring(mode or ""))
+    if mode ~= "weapon" and mode ~= "spark" then
+        self:Print("Usage: /swingpulse icon <weapon|spark>")
+        return
+    end
+
+    self.db.icon_mode = mode
+
+    if self.RefreshIconTextures then
+        self:RefreshIconTextures()
+    end
+
+    self:ApplyAllSettings()
+    self:Print("Marker icon mode set to " .. mode .. ".")
+end
+
 function ns:PrintHelp()
-    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, colors <ember|tide|ash>, reset, debug, ticks")
+    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, sync <seconds>, icon <weapon|spark>, colors <ember|tide|ash>, reset, debug, ticks")
 end
 
 function ns:RegisterSlashCommands()
@@ -186,6 +215,28 @@ function ns:RegisterSlashCommands()
             end
 
             ns:SetScale(scale)
+            return
+        end
+
+        if command == "sync" then
+            local seconds = tonumber(args[2])
+            if not seconds then
+                ns:Print("Usage: /swingpulse sync <seconds>")
+                return
+            end
+
+            ns:SetSyncWindow(seconds)
+            return
+        end
+
+        if command == "icon" then
+            local mode = string.lower(args[2] or "")
+            if mode == "" then
+                ns:Print("Usage: /swingpulse icon <weapon|spark>")
+                return
+            end
+
+            ns:SetIconMode(mode)
             return
         end
 

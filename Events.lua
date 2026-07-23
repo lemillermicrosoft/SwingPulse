@@ -133,11 +133,21 @@ end
 function ns:PLAYER_ENTERING_WORLD()
     self.state.player_guid = UnitGUID("player")
     self:UpdateWeaponSpeeds()
+
+    if self.RefreshIconTextures then
+        self:RefreshIconTextures()
+    end
+
     self:RefreshBars(true)
 end
 
 function ns:PLAYER_EQUIPMENT_CHANGED()
     self:UpdateWeaponSpeeds()
+
+    if self.RefreshIconTextures then
+        self:RefreshIconTextures()
+    end
+
     self:RefreshBars(true)
 end
 
@@ -147,6 +157,11 @@ function ns:UNIT_INVENTORY_CHANGED(unit_token)
     end
 
     self:UpdateWeaponSpeeds()
+
+    if self.RefreshIconTextures then
+        self:RefreshIconTextures()
+    end
+
     self:RefreshBars(true)
 end
 
@@ -168,6 +183,10 @@ function ns:ADDON_LOADED(loaded_addon)
     end
 
     self:InitializeAddon()
+
+    if self.RefreshIconTextures then
+        self:RefreshIconTextures()
+    end
 end
 
 local event_frame = CreateFrame("Frame")

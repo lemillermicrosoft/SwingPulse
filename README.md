@@ -13,6 +13,8 @@ SwingPulse is a minimal World of Warcraft melee swing timer addon with a single 
 - `/swingpulse unlock` unlocks the frame for dragging.
 - `/swingpulse size <width> <height>` sets the bar size.
 - `/swingpulse scale <number>` sets the frame scale.
+- `/swingpulse sync <seconds>` sets the sync window used for dual-wield green state (clamped 0.05 to 1.00).
+- `/swingpulse icon <weapon|spark>` switches moving marker style between weapon icons and spark textures.
 - `/swingpulse colors <ember|tide|ash>` switches color presets.
 - `/swingpulse reset` restores default settings.
 - `/swingpulse debug` toggles swing timing diagnostics in chat.
@@ -22,7 +24,9 @@ SwingPulse is a minimal World of Warcraft melee swing timer addon with a single 
 
 - Main-hand swings are tracked from combat log swing events.
 - Off-hand tracking is shown on the same sync bar only while a valid off-hand attack speed is available.
-- The center marker helps align both swing icons for dual-wield sync timing.
+- The midpoint is explicitly marked (line, glow, and MID label) because midpoint timing is used to gauge when to tap the resync macro.
+- In dual wield, the bar turns green when MH and OH are within the configured sync window, and status text shows SYNC state plus which hand is first.
+- Moving markers support MH/OH labels and can use current weapon inventory icons with spark fallback.
 - Known on-next-swing abilities are treated as main-hand swing consumers, and Slam is treated as a swing reset signal.
 
 ## Timing Validation
