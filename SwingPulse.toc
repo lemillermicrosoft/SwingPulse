@@ -3,6 +3,7 @@
 ## Notes: Minimal melee swing timer with optional dual-wield tracking.
 ## Author: GitHub Copilot c/o deehoc
 ## Version: 0.1.3
+## IconTexture: Interface\AddOns\SwingPulse\Media\icon.png
 ## SavedVariables: SwingPulseDB
 
 Core.lua
