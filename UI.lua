@@ -148,12 +148,19 @@ function ns:UpdateSyncBarDisplay(now)
 
     local red, green, blue, alpha
     local min_remaining = main_remaining
+    local dual_active = self.state.dual_wield and main_timer.active and off_timer.active
+    local sync_diff = dual_active and math_abs(main_remaining - off_remaining) or nil
+    local sync_window = 0.08
 
     if self.state.dual_wield then
         min_remaining = math_min(main_remaining, off_remaining)
     end
 
-    if main_timer.active or (self.state.dual_wield and off_timer.active) then
+    if dual_active and sync_diff <= sync_window then
+        red, green, blue, alpha = self:GetColor("ready")
+    elseif dual_active and main_remaining > off_remaining then
+        red, green, blue, alpha = self:GetColor("warning")
+    elseif main_timer.active or (self.state.dual_wield and off_timer.active) then
         if self.db.latency_warning and min_remaining <= self:GetLatencyThreshold() then
             red, green, blue, alpha = self:GetColor("warning")
         else
@@ -167,8 +174,8 @@ function ns:UpdateSyncBarDisplay(now)
     if self.state.dual_wield then
         local main_value = main_timer.active and main_remaining or 0
         local off_value = off_timer.active and off_remaining or 0
-        local sync_diff = math_abs(main_value - off_value)
-        status_text = string_format("MH %.1f   |   OH %.1f   |   DIFF %.1f", main_value, off_value, sync_diff)
+        local shown_diff = sync_diff or math_abs(main_value - off_value)
+        status_text = string_format("MH %.1f   |   OH %.1f   |   DIFF %.1f", main_value, off_value, shown_diff)
     else
         local main_value = main_timer.active and main_remaining or 0
         status_text = string_format("MH %.1f", main_value)
