@@ -1,10 +1,13 @@
 local _, ns = ...
 
 local string_format = string.format
+local string_sub = string.sub
+local string_upper = string.upper
 local math_min = math.min
 local math_abs = math.abs
 local math_max = math.max
 local math_floor = math.floor
+local ipairs = ipairs
 
 local MAIN_HAND_SLOT = INVSLOT_MAINHAND or 16
 local OFF_HAND_SLOT = INVSLOT_OFFHAND or 17
@@ -116,6 +119,60 @@ local function create_bar(parent, global_name, label)
     bar.text = text
 
     return bar
+end
+
+local function create_checkbox(parent, label, point, offset_x, offset_y)
+    local checkbox = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    checkbox:SetPoint(point, parent, point, offset_x, offset_y)
+
+    local text = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    text:SetPoint("LEFT", checkbox, "RIGHT", 4, 1)
+    text:SetText(label)
+    checkbox.label = text
+
+    return checkbox
+end
+
+local function create_slider(parent, label, min_value, max_value, step, offset_x, offset_y)
+    local slider = CreateFrame("Slider", nil, parent, "OptionsSliderTemplate")
+    slider:SetPoint("TOPLEFT", parent, "TOPLEFT", offset_x, offset_y)
+    slider:SetMinMaxValues(min_value, max_value)
+    slider:SetValueStep(step)
+    slider:SetWidth(220)
+
+    local text = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    text:SetPoint("BOTTOMLEFT", slider, "TOPLEFT", 0, 6)
+    text:SetText(label)
+    slider.label = text
+
+    local value_text = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    value_text:SetPoint("LEFT", slider, "RIGHT", 12, 0)
+    value_text:SetWidth(64)
+    value_text:SetJustifyH("LEFT")
+    slider.value_text = value_text
+
+    return slider
+end
+
+local function create_dropdown(parent, global_name, label, offset_x, offset_y, width)
+    local text = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    text:SetPoint("TOPLEFT", parent, "TOPLEFT", offset_x, offset_y)
+    text:SetText(label)
+
+    local dropdown = CreateFrame("Frame", global_name, parent, "UIDropDownMenuTemplate")
+    dropdown:SetPoint("TOPLEFT", parent, "TOPLEFT", offset_x - 16, offset_y - 18)
+    UIDropDownMenu_SetWidth(dropdown, width)
+
+    return dropdown
+end
+
+local function preset_display_name(name)
+    name = tostring(name or "")
+    if name == "" then
+        return "Unknown"
+    end
+
+    return string_upper(string_sub(name, 1, 1)) .. string_sub(name, 2)
 end
 
 function ns:SavePosition()
@@ -364,6 +421,283 @@ function ns:ApplySettings()
     self.ui:EnableMouse(not self.db.locked)
 
     self:UpdateBarVisibility()
+
+    if self.RefreshConfigPanel then
+        self:RefreshConfigPanel()
+    end
+end
+
+function ns:RefreshConfigPanel()
+    local panel = self.config_panel
+    if not panel or not self.db then
+        return
+    end
+
+    panel.syncing = true
+
+    panel.lock_checkbox:SetChecked(self.db.locked)
+    panel.debug_checkbox:SetChecked(self.db.debug)
+    panel.ticks_checkbox:SetChecked(self.db.trace_ticks)
+
+    panel.width_slider:SetValue(self.db.width)
+    panel.width_slider.value_text:SetText(string_format("%.0f", self.db.width))
+
+    panel.height_slider:SetValue(self.db.height)
+    panel.height_slider.value_text:SetText(string_format("%.0f", self.db.height))
+
+    panel.scale_slider:SetValue(self.db.scale)
+    panel.scale_slider.value_text:SetText(string_format("%.2f", self.db.scale))
+
+    panel.sync_slider:SetValue(self:GetSyncWindowSeconds())
+    panel.sync_slider.value_text:SetText(string_format("%.2fs", self.db.sync_window_seconds))
+
+    local icon_mode = self:GetMarkerIconMode()
+    UIDropDownMenu_SetSelectedValue(panel.icon_dropdown, icon_mode)
+    UIDropDownMenu_SetText(panel.icon_dropdown, icon_mode == "spark" and "Spark" or "Weapon")
+
+    UIDropDownMenu_SetSelectedValue(panel.colors_dropdown, self.db.color_preset)
+    UIDropDownMenu_SetText(panel.colors_dropdown, preset_display_name(self.db.color_preset))
+
+    panel.syncing = false
+end
+
+function ns:CreateConfigPanel()
+    if self.config_panel then
+        return
+    end
+
+    local panel = CreateFrame("Frame", "SwingPulseConfigPanel", UIParent)
+    panel:SetSize(360, 470)
+    panel:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    panel:SetFrameStrata("DIALOG")
+    panel:SetToplevel(true)
+    panel:SetMovable(true)
+    panel:SetClampedToScreen(true)
+    panel:EnableMouse(true)
+    panel:RegisterForDrag("LeftButton")
+    panel:SetScript("OnDragStart", function(current)
+        current:StartMoving()
+    end)
+    panel:SetScript("OnDragStop", function(current)
+        current:StopMovingOrSizing()
+    end)
+
+    local background = panel:CreateTexture(nil, "BACKGROUND")
+    background:SetAllPoints()
+    background:SetColorTexture(0.05, 0.05, 0.06, 0.95)
+
+    local border_top = panel:CreateTexture(nil, "BORDER")
+    border_top:SetColorTexture(0.92, 0.76, 0.30, 0.95)
+    border_top:SetPoint("TOPLEFT", panel, "TOPLEFT", -1, 1)
+    border_top:SetPoint("TOPRIGHT", panel, "TOPRIGHT", 1, 1)
+    border_top:SetHeight(1)
+
+    local border_bottom = panel:CreateTexture(nil, "BORDER")
+    border_bottom:SetColorTexture(0.92, 0.76, 0.30, 0.95)
+    border_bottom:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", -1, -1)
+    border_bottom:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", 1, -1)
+    border_bottom:SetHeight(1)
+
+    local border_left = panel:CreateTexture(nil, "BORDER")
+    border_left:SetColorTexture(0.92, 0.76, 0.30, 0.95)
+    border_left:SetPoint("TOPLEFT", panel, "TOPLEFT", -1, 1)
+    border_left:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", -1, -1)
+    border_left:SetWidth(1)
+
+    local border_right = panel:CreateTexture(nil, "BORDER")
+    border_right:SetColorTexture(0.92, 0.76, 0.30, 0.95)
+    border_right:SetPoint("TOPRIGHT", panel, "TOPRIGHT", 1, 1)
+    border_right:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", 1, -1)
+    border_right:SetWidth(1)
+
+    local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", panel, "TOPLEFT", 14, -12)
+    title:SetText("SwingPulse Configuration")
+
+    local subtitle = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
+    subtitle:SetText("Toggle with /swingpulse config or /sp ui")
+
+    local close_top = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
+    close_top:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -2, -2)
+
+    panel.lock_checkbox = create_checkbox(panel, "Lock Frame", "TOPLEFT", 16, -58)
+    panel.lock_checkbox:SetScript("OnClick", function(current)
+        if panel.syncing then
+            return
+        end
+
+        ns.db.locked = current:GetChecked() and true or false
+        ns:ApplyAllSettings()
+    end)
+
+    panel.debug_checkbox = create_checkbox(panel, "Debug Output", "TOPLEFT", 16, -84)
+    panel.debug_checkbox:SetScript("OnClick", function(current)
+        if panel.syncing then
+            return
+        end
+
+        ns.db.debug = current:GetChecked() and true or false
+    end)
+
+    panel.ticks_checkbox = create_checkbox(panel, "Tick Trace", "TOPLEFT", 16, -110)
+    panel.ticks_checkbox:SetScript("OnClick", function(current)
+        if panel.syncing then
+            return
+        end
+
+        ns.db.trace_ticks = current:GetChecked() and true or false
+    end)
+
+    panel.width_slider = create_slider(panel, "Bar Width", 120, 480, 1, 18, -154)
+    panel.width_slider:SetScript("OnValueChanged", function(current, value)
+        local rounded = math_floor(value + 0.5)
+        current.value_text:SetText(string_format("%.0f", rounded))
+
+        if panel.syncing then
+            return
+        end
+
+        ns.db.width = ns:Clamp(rounded, 120, 480)
+        ns:ApplyAllSettings()
+    end)
+
+    panel.height_slider = create_slider(panel, "Bar Height", 10, 40, 1, 18, -210)
+    panel.height_slider:SetScript("OnValueChanged", function(current, value)
+        local rounded = math_floor(value + 0.5)
+        current.value_text:SetText(string_format("%.0f", rounded))
+
+        if panel.syncing then
+            return
+        end
+
+        ns.db.height = ns:Clamp(rounded, 10, 40)
+        ns:ApplyAllSettings()
+    end)
+
+    panel.scale_slider = create_slider(panel, "Frame Scale", 0.75, 2.0, 0.01, 18, -266)
+    panel.scale_slider:SetScript("OnValueChanged", function(current, value)
+        local rounded = math_floor((value * 100) + 0.5) / 100
+        current.value_text:SetText(string_format("%.2f", rounded))
+
+        if panel.syncing then
+            return
+        end
+
+        ns.db.scale = ns:Clamp(rounded, 0.75, 2.0)
+        ns:ApplyAllSettings()
+    end)
+
+    panel.sync_slider = create_slider(panel, "Sync Window", 0.05, 1.0, 0.01, 18, -320)
+    panel.sync_slider:SetScript("OnValueChanged", function(current, value)
+        local rounded = math_floor((value * 100) + 0.5) / 100
+        current.value_text:SetText(string_format("%.2fs", rounded))
+
+        if panel.syncing then
+            return
+        end
+
+        ns.db.sync_window_seconds = ns:Clamp(rounded, 0.05, 1.0)
+        ns:RefreshBars(true)
+    end)
+
+    panel.icon_dropdown = create_dropdown(panel, "SwingPulseIconModeDropDown", "Marker Style", 16, -372, 128)
+    UIDropDownMenu_Initialize(panel.icon_dropdown, function(current)
+        local options = {
+            { text = "Weapon", value = "weapon" },
+            { text = "Spark", value = "spark" },
+        }
+
+        local index
+        for index = 1, #options do
+            local option = options[index]
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = option.text
+            info.value = option.value
+            info.func = function(button)
+                UIDropDownMenu_SetSelectedValue(current, button.value)
+                if panel.syncing then
+                    return
+                end
+
+                ns.db.icon_mode = button.value
+                ns:RefreshIconTextures()
+                ns:ApplyAllSettings()
+            end
+            UIDropDownMenu_AddButton(info)
+        end
+    end)
+
+    panel.colors_dropdown = create_dropdown(panel, "SwingPulseColorPresetDropDown", "Color Preset", 182, -372, 128)
+    UIDropDownMenu_Initialize(panel.colors_dropdown, function(current)
+        local options = {
+            { text = "Ember", value = "ember" },
+            { text = "Tide", value = "tide" },
+            { text = "Ash", value = "ash" },
+        }
+
+        local index
+        for index = 1, #options do
+            local option = options[index]
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = option.text
+            info.value = option.value
+            info.func = function(button)
+                UIDropDownMenu_SetSelectedValue(current, button.value)
+                if panel.syncing then
+                    return
+                end
+
+                ns:ApplyColorPreset(button.value, true)
+                ns:RefreshConfigPanel()
+            end
+            UIDropDownMenu_AddButton(info)
+        end
+    end)
+
+    local reset_button = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    reset_button:SetSize(112, 22)
+    reset_button:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 16, 10)
+    reset_button:SetText("Reset Defaults")
+    reset_button:SetScript("OnClick", function()
+        ns:ResetSettings()
+        ns:RefreshConfigPanel()
+    end)
+
+    local help_button = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    help_button:SetSize(84, 22)
+    help_button:SetPoint("LEFT", reset_button, "RIGHT", 8, 0)
+    help_button:SetText("Print Help")
+    help_button:SetScript("OnClick", function()
+        ns:PrintHelp()
+    end)
+
+    local close_button = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    close_button:SetSize(70, 22)
+    close_button:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -16, 10)
+    close_button:SetText("Close")
+    close_button:SetScript("OnClick", function()
+        panel:Hide()
+    end)
+
+    panel:Hide()
+
+    self.config_panel = panel
+end
+
+function ns:ToggleConfigPanel()
+    if not self.config_panel then
+        self:CreateConfigPanel()
+    end
+
+    if self.config_panel:IsShown() then
+        self.config_panel:Hide()
+        return
+    end
+
+    self:RefreshConfigPanel()
+    self.config_panel:Show()
+    self.config_panel:Raise()
 end
 
 function ns:CreateUI()

@@ -158,7 +158,7 @@ function ns:SetIconMode(mode)
 end
 
 function ns:PrintHelp()
-    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, sync <seconds>, icon <weapon|spark>, colors <ember|tide|ash>, reset, debug, ticks")
+    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, sync <seconds>, icon <weapon|spark>, colors <ember|tide|ash>, reset, debug, ticks, config")
 end
 
 function ns:RegisterSlashCommands()
@@ -248,6 +248,14 @@ function ns:RegisterSlashCommands()
             end
 
             ns:ApplyColorPreset(preset_name, false)
+            return
+        end
+
+        if command == "config" or command == "ui" then
+            if ns.ToggleConfigPanel then
+                ns:ToggleConfigPanel()
+            end
+
             return
         end
 
