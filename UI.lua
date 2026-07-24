@@ -291,9 +291,16 @@ function ns:UpdateTextVisibility()
     end
 
     if self.ui.mid_label then
-        if self.db.show_mid_text then
+        local show_nick_title = self.IsNickTitleVisible and self:IsNickTitleVisible()
+
+        if show_nick_title then
+            self.ui.mid_label:SetText("NICK CERTIFIED")
+            self.ui.mid_label:Show()
+        elseif self.db.show_mid_text then
+            self.ui.mid_label:SetText("MID")
             self.ui.mid_label:Show()
         else
+            self.ui.mid_label:SetText("MID")
             self.ui.mid_label:Hide()
         end
     end
@@ -452,6 +459,11 @@ function ns:UpdateSyncBarDisplay(now)
     local sync_diff = dual_display_active and math_abs(main_effective_remaining - off_effective_remaining) or nil
     local mh_ahead = dual_display_active and main_effective_remaining <= off_effective_remaining
     local is_synced = dual_display_active and mh_ahead and sync_diff and sync_diff <= sync_window
+
+    if self.ScoreNickChallengeSample then
+        self:ScoreNickChallengeSample(now, is_synced, dual_display_active)
+    end
+
     local min_remaining = main_display_remaining
 
     if self.state.dual_wield then

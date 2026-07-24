@@ -11,6 +11,17 @@ ns.state = ns.state or {
     player_guid = nil,
     dual_wield = false,
     active_count = 0,
+    nick = {
+        title_enabled = false,
+        armed = false,
+        active = false,
+        started_at = 0,
+        ends_at = 0,
+        next_sample_at = 0,
+        next_feedback_at = 0,
+        total_samples = 0,
+        synced_samples = 0,
+    },
     timers = {
         main = {
             key = "main",
@@ -110,6 +121,36 @@ end
 
 function ns:Now()
     return GetTime() or 0
+end
+
+function ns:EnsureNickState()
+    local nick = self.state and self.state.nick
+
+    if type(nick) ~= "table" then
+        nick = {}
+        self.state.nick = nick
+    end
+
+    if nick.title_enabled == nil then
+        nick.title_enabled = false
+    end
+
+    if nick.armed == nil then
+        nick.armed = false
+    end
+
+    if nick.active == nil then
+        nick.active = false
+    end
+
+    nick.started_at = tonumber(nick.started_at) or 0
+    nick.ends_at = tonumber(nick.ends_at) or 0
+    nick.next_sample_at = tonumber(nick.next_sample_at) or 0
+    nick.next_feedback_at = tonumber(nick.next_feedback_at) or 0
+    nick.total_samples = tonumber(nick.total_samples) or 0
+    nick.synced_samples = tonumber(nick.synced_samples) or 0
+
+    return nick
 end
 
 function ns:GetLatencyThreshold()
@@ -306,7 +347,8 @@ function ns:RecordDriftSample(timer, drift_ms)
 end
 
 function ns:IsAnyTimerActive()
-    return self.state.active_count > 0
+    local nick = self:EnsureNickState()
+    return self.state.active_count > 0 or nick.active
 end
 
 function ns:UpdateWeaponSpeeds()
@@ -363,6 +405,7 @@ function ns:InitializeAddon()
     end
 
     self:InitializeDatabase()
+    self:EnsureNickState()
     self:CreateUI()
     self:RegisterSlashCommands()
     self.state.player_guid = UnitGUID("player")

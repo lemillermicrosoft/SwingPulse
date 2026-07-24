@@ -173,6 +173,12 @@ function ns:UNIT_ATTACK_SPEED(unit_token)
     self:UpdateWeaponSpeeds()
 end
 
+function ns:PLAYER_REGEN_DISABLED()
+    if self.StartNickChallenge then
+        self:StartNickChallenge(self:Now())
+    end
+end
+
 function ns:COMBAT_LOG_EVENT_UNFILTERED()
     self:HandleCombatLogEvent()
 end
@@ -195,6 +201,7 @@ event_frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 event_frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 event_frame:RegisterEvent("UNIT_INVENTORY_CHANGED")
 event_frame:RegisterEvent("UNIT_ATTACK_SPEED")
+event_frame:RegisterEvent("PLAYER_REGEN_DISABLED")
 event_frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 event_frame:SetScript("OnEvent", function(_, event, ...)
     local handler = ns[event]

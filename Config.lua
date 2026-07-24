@@ -1,5 +1,15 @@
 local _, ns = ...
 
+local math_floor = math.floor
+
+local NICK_FEEDBACK_WORDS = {
+    "CLEAN",
+    "SHARP",
+    "SPICY",
+    "CRISP",
+    "LOCKED IN",
+}
+
 ns.defaults = {
     width = 220,
     height = 18,
@@ -260,6 +270,147 @@ function ns:SetTextVisibility(target, mode)
     ))
 end
 
+function ns:IsNickTitleVisible()
+    local nick = self:EnsureNickState()
+    return nick.title_enabled
+end
+
+function ns:ArmNickChallenge()
+    local nick = self:EnsureNickState()
+
+    nick.title_enabled = true
+    nick.armed = true
+
+    if nick.active then
+        self:FinalizeNickChallenge("rearmed")
+    end
+
+    if UnitAffectingCombat("player") then
+        self:Print("Nick challenge armed. It will start on your next combat session.")
+    else
+        self:Print("Nick challenge armed. Enter combat to start your 10s sync run.")
+    end
+
+    if self.RefreshBars then
+        self:RefreshBars(true)
+    end
+end
+
+function ns:StartNickChallenge(now)
+    local nick = self:EnsureNickState()
+
+    if not nick.armed or nick.active then
+        return
+    end
+
+    now = now or self:Now()
+    nick.armed = false
+    nick.active = true
+    nick.started_at = now
+    nick.ends_at = now + 10
+    nick.next_sample_at = now
+    nick.next_feedback_at = now
+    nick.total_samples = 0
+    nick.synced_samples = 0
+
+    self:Print("Nick challenge started: keep MH/OH synced for 10.0s.")
+
+    if self.RefreshBars then
+        self:RefreshBars(true)
+    end
+
+    if self.UpdateTicking then
+        self:UpdateTicking()
+    end
+end
+
+function ns:FinalizeNickChallenge(reason)
+    local nick = self:EnsureNickState()
+
+    if not nick.active then
+        return
+    end
+
+    nick.active = false
+
+    local total = nick.total_samples or 0
+    local synced = nick.synced_samples or 0
+    local percent = 0
+
+    if total > 0 then
+        percent = math_floor(((synced / total) * 100) + 0.5)
+    end
+
+    local verdict = "WOBBLY"
+    if percent >= 90 then
+        verdict = "CERTIFIED"
+    elseif percent >= 75 then
+        verdict = "SHARP"
+    elseif percent >= 60 then
+        verdict = "SPICY"
+    end
+
+    if total <= 0 then
+        self:Print("Nick challenge complete: no dual-wield sync samples yet.")
+    else
+        self:Print(string.format(
+            "Nick challenge complete: %d/%d clean checks (%d%%) - %s.",
+            synced,
+            total,
+            percent,
+            verdict
+        ))
+    end
+
+    if reason == "combat-ended" then
+        self:Print("Challenge closed on combat end.")
+    end
+
+    if self.UpdateTicking then
+        self:UpdateTicking()
+    end
+
+    if self.RefreshBars then
+        self:RefreshBars(true)
+    end
+end
+
+function ns:ScoreNickChallengeSample(now, is_synced, dual_display_active)
+    local nick = self:EnsureNickState()
+
+    if not nick.active then
+        return
+    end
+
+    now = now or self:Now()
+
+    if now >= nick.ends_at then
+        self:FinalizeNickChallenge("time")
+        return
+    end
+
+    if not dual_display_active then
+        return
+    end
+
+    if now < nick.next_sample_at then
+        return
+    end
+
+    nick.next_sample_at = now + 0.25
+    nick.total_samples = nick.total_samples + 1
+
+    if is_synced then
+        nick.synced_samples = nick.synced_samples + 1
+
+        if now >= nick.next_feedback_at then
+            local index = math.random(1, #NICK_FEEDBACK_WORDS)
+            self:Print(NICK_FEEDBACK_WORDS[index])
+            nick.next_feedback_at = now + 1.0
+        end
+    end
+end
+
 function ns:RegisterSlashCommands()
     if self.slash_registered then
         return
@@ -387,6 +538,11 @@ function ns:RegisterSlashCommands()
                 ns:ToggleConfigPanel()
             end
 
+            return
+        end
+
+        if command == "nick" then
+            ns:ArmNickChallenge()
             return
         end
 
