@@ -351,40 +351,37 @@ function ns:UpdateSyncBarDisplay(now)
         red, green, blue, alpha = self:GetColor("ready")
     end
 
-    local status_text
-    local mh_prefix = self.db.show_mh_text and "MH " or ""
-    local oh_prefix = self.db.show_oh_text and "OH " or ""
-    if self.state.dual_wield then
-        local main_value = main_timer.active and main_remaining or 0
-        local off_value = off_timer.active and off_remaining or 0
-        local shown_diff = sync_diff or math_abs(main_value - off_value)
-        local sync_label = is_synced and "SYNC OK" or "SYNC OUT"
-        local direction_label = "DIR --"
+    local main_value = main_timer.active and main_remaining or 0
+    local off_value = off_timer.active and off_remaining or 0
+    local shown_diff = sync_diff or math_abs(main_value - off_value)
+    local sync_label = is_synced and "SYNC OK" or "SYNC OUT"
+    local direction_label = "DIR --"
 
-        if dual_active then
-            if main_remaining < off_remaining then
-                direction_label = "DIR MH first"
-            elseif main_remaining > off_remaining then
-                direction_label = "DIR OH first"
-            else
-                direction_label = "DIR even"
-            end
+    if dual_active then
+        if main_remaining < off_remaining then
+            direction_label = "DIR MH first"
+        elseif main_remaining > off_remaining then
+            direction_label = "DIR OH first"
+        else
+            direction_label = "DIR even"
         end
-
-        status_text = string_format(
-            "%s%.2f  |  %s%.2f  |  DIFF %.2f  |  %s  |  %s",
-            mh_prefix,
-            main_value,
-            oh_prefix,
-            off_value,
-            shown_diff,
-            sync_label,
-            direction_label
-        )
-    else
-        local main_value = main_timer.active and main_remaining or 0
-        status_text = string_format("%s%.2f", mh_prefix, main_value)
     end
+
+    local sections = {}
+    if self.db.show_mh_text then
+        sections[#sections + 1] = string_format("MH %.2f", main_value)
+    end
+    if self.state.dual_wield and self.db.show_oh_text then
+        sections[#sections + 1] = string_format("OH %.2f", off_value)
+    end
+    if self.state.dual_wield and self.db.show_diff_text then
+        sections[#sections + 1] = string_format("DIFF %.2f", shown_diff)
+    end
+    if self.state.dual_wield and self.db.show_sync_text then
+        sections[#sections + 1] = sync_label
+        sections[#sections + 1] = direction_label
+    end
+    local status_text = table.concat(sections, "  |  ")
 
     self.ui.sync_bar:SetStatusBarColor(red, green, blue, alpha)
     self.ui.sync_bar:SetValue(1)
@@ -467,6 +464,8 @@ function ns:RefreshConfigPanel()
     panel.mh_text_checkbox:SetChecked(self.db.show_mh_text)
     panel.oh_text_checkbox:SetChecked(self.db.show_oh_text)
     panel.mid_text_checkbox:SetChecked(self.db.show_mid_text)
+    panel.diff_text_checkbox:SetChecked(self.db.show_diff_text)
+    panel.sync_text_checkbox:SetChecked(self.db.show_sync_text)
 
     panel.width_slider:SetValue(self.db.width)
     panel.width_slider.value_text:SetText(string_format("%.0f", self.db.width))
@@ -496,7 +495,7 @@ function ns:CreateConfigPanel()
     end
 
     local panel = CreateFrame("Frame", "SwingPulseConfigPanel", UIParent)
-    panel:SetSize(360, 548)
+    panel:SetSize(360, 600)
     panel:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     panel:SetFrameStrata("DIALOG")
     panel:SetToplevel(true)
@@ -578,7 +577,7 @@ function ns:CreateConfigPanel()
         ns.db.trace_ticks = current:GetChecked() and true or false
     end)
 
-    panel.mh_text_checkbox = create_checkbox(panel, "Show MH Text", "TOPLEFT", 16, -136)
+    panel.mh_text_checkbox = create_checkbox(panel, "Show MH Speed", "TOPLEFT", 16, -136)
     panel.mh_text_checkbox:SetScript("OnClick", function(current)
         if panel.syncing then
             return
@@ -588,7 +587,7 @@ function ns:CreateConfigPanel()
         ns:ApplyAllSettings()
     end)
 
-    panel.oh_text_checkbox = create_checkbox(panel, "Show OH Text", "TOPLEFT", 16, -162)
+    panel.oh_text_checkbox = create_checkbox(panel, "Show OH Speed", "TOPLEFT", 16, -162)
     panel.oh_text_checkbox:SetScript("OnClick", function(current)
         if panel.syncing then
             return
@@ -598,7 +597,7 @@ function ns:CreateConfigPanel()
         ns:ApplyAllSettings()
     end)
 
-    panel.mid_text_checkbox = create_checkbox(panel, "Show MID Text", "TOPLEFT", 16, -188)
+    panel.mid_text_checkbox = create_checkbox(panel, "Show MID Label", "TOPLEFT", 16, -188)
     panel.mid_text_checkbox:SetScript("OnClick", function(current)
         if panel.syncing then
             return
@@ -608,7 +607,27 @@ function ns:CreateConfigPanel()
         ns:ApplyAllSettings()
     end)
 
-    panel.width_slider = create_slider(panel, "Bar Width", 120, 480, 1, 18, -232)
+    panel.diff_text_checkbox = create_checkbox(panel, "Show Diff Speed", "TOPLEFT", 16, -214)
+    panel.diff_text_checkbox:SetScript("OnClick", function(current)
+        if panel.syncing then
+            return
+        end
+
+        ns.db.show_diff_text = current:GetChecked() and true or false
+        ns:ApplyAllSettings()
+    end)
+
+    panel.sync_text_checkbox = create_checkbox(panel, "Show Sync Status", "TOPLEFT", 16, -240)
+    panel.sync_text_checkbox:SetScript("OnClick", function(current)
+        if panel.syncing then
+            return
+        end
+
+        ns.db.show_sync_text = current:GetChecked() and true or false
+        ns:ApplyAllSettings()
+    end)
+
+    panel.width_slider = create_slider(panel, "Bar Width", 120, 480, 1, 18, -284)
     panel.width_slider:SetScript("OnValueChanged", function(current, value)
         local rounded = math_floor(value + 0.5)
         current.value_text:SetText(string_format("%.0f", rounded))
@@ -621,7 +640,7 @@ function ns:CreateConfigPanel()
         ns:ApplyAllSettings()
     end)
 
-    panel.height_slider = create_slider(panel, "Bar Height", 10, 40, 1, 18, -288)
+    panel.height_slider = create_slider(panel, "Bar Height", 10, 40, 1, 18, -340)
     panel.height_slider:SetScript("OnValueChanged", function(current, value)
         local rounded = math_floor(value + 0.5)
         current.value_text:SetText(string_format("%.0f", rounded))
@@ -634,7 +653,7 @@ function ns:CreateConfigPanel()
         ns:ApplyAllSettings()
     end)
 
-    panel.scale_slider = create_slider(panel, "Frame Scale", 0.75, 2.0, 0.01, 18, -344)
+    panel.scale_slider = create_slider(panel, "Frame Scale", 0.75, 2.0, 0.01, 18, -396)
     panel.scale_slider:SetScript("OnValueChanged", function(current, value)
         local rounded = math_floor((value * 100) + 0.5) / 100
         current.value_text:SetText(string_format("%.2f", rounded))
@@ -647,7 +666,7 @@ function ns:CreateConfigPanel()
         ns:ApplyAllSettings()
     end)
 
-    panel.sync_slider = create_slider(panel, "Sync Window", 0.05, 1.0, 0.01, 18, -398)
+    panel.sync_slider = create_slider(panel, "Sync Window", 0.05, 1.0, 0.01, 18, -450)
     panel.sync_slider:SetScript("OnValueChanged", function(current, value)
         local rounded = math_floor((value * 100) + 0.5) / 100
         current.value_text:SetText(string_format("%.2fs", rounded))
@@ -660,7 +679,7 @@ function ns:CreateConfigPanel()
         ns:RefreshBars(true)
     end)
 
-    panel.icon_dropdown = create_dropdown(panel, "SwingPulseIconModeDropDown", "Marker Style", 16, -450, 128)
+    panel.icon_dropdown = create_dropdown(panel, "SwingPulseIconModeDropDown", "Marker Style", 16, -502, 128)
     UIDropDownMenu_Initialize(panel.icon_dropdown, function(current)
         local options = {
             { text = "Weapon", value = "weapon" },
@@ -687,7 +706,7 @@ function ns:CreateConfigPanel()
         end
     end)
 
-    panel.colors_dropdown = create_dropdown(panel, "SwingPulseColorPresetDropDown", "Color Preset", 182, -450, 128)
+    panel.colors_dropdown = create_dropdown(panel, "SwingPulseColorPresetDropDown", "Color Preset", 182, -502, 128)
     UIDropDownMenu_Initialize(panel.colors_dropdown, function(current)
         local options = {
             { text = "Ember", value = "ember" },
