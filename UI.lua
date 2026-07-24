@@ -355,6 +355,37 @@ local function get_timer_display_remaining(timer, now)
     return math_max(timer.expires_at - now, 0)
 end
 
+local function normalize_wrap_remaining(main_remaining, off_remaining, main_duration, off_duration, sync_window)
+    local effective_main = main_remaining
+    local effective_off = off_remaining
+
+    if not sync_window or sync_window <= 0 then
+        return effective_main, effective_off, "none"
+    end
+
+    local mh_wrapped = false
+    local oh_wrapped = false
+
+    if main_duration and main_duration > 0 and off_duration and off_duration > 0 then
+        mh_wrapped = (main_remaining >= math_max(main_duration - sync_window, 0)) and (off_remaining <= sync_window)
+        oh_wrapped = (off_remaining >= math_max(off_duration - sync_window, 0)) and (main_remaining <= sync_window)
+    end
+
+    if mh_wrapped and oh_wrapped then
+        return 0, 0, "both"
+    end
+
+    if mh_wrapped then
+        return 0, effective_off, "mh"
+    end
+
+    if oh_wrapped then
+        return effective_main, 0, "oh"
+    end
+
+    return effective_main, effective_off, "none"
+end
+
 function ns:UpdateSyncBarDisplay(now)
     now = now or self:Now()
 
@@ -387,8 +418,39 @@ function ns:UpdateSyncBarDisplay(now)
     local main_display_remaining = get_timer_display_remaining(main_timer, now)
     local off_display_remaining = get_timer_display_remaining(off_timer, now)
     local dual_display_active = self.state.dual_wield and main_display_active and off_display_active
-    local sync_diff = dual_display_active and math_abs(main_display_remaining - off_display_remaining) or nil
-    local mh_ahead = dual_display_active and main_display_remaining <= off_display_remaining
+    local main_effective_remaining = main_display_remaining
+    local off_effective_remaining = off_display_remaining
+    local wrap_state = "none"
+
+    if dual_display_active then
+        main_effective_remaining, off_effective_remaining, wrap_state = normalize_wrap_remaining(
+            main_display_remaining,
+            off_display_remaining,
+            main_timer.duration,
+            off_timer.duration,
+            sync_window
+        )
+    end
+
+    if self:IsDebugEnabled() then
+        self.state.last_wrap_normalization = self.state.last_wrap_normalization or "none"
+        if wrap_state ~= self.state.last_wrap_normalization then
+            if wrap_state ~= "none" then
+                self:DebugPrint(string.format(
+                    "sync-wrap %s rawMH=%.3f rawOH=%.3f effMH=%.3f effOH=%.3f",
+                    wrap_state,
+                    main_display_remaining,
+                    off_display_remaining,
+                    main_effective_remaining,
+                    off_effective_remaining
+                ))
+            end
+            self.state.last_wrap_normalization = wrap_state
+        end
+    end
+
+    local sync_diff = dual_display_active and math_abs(main_effective_remaining - off_effective_remaining) or nil
+    local mh_ahead = dual_display_active and main_effective_remaining <= off_effective_remaining
     local is_synced = dual_display_active and mh_ahead and sync_diff and sync_diff <= sync_window
     local min_remaining = main_display_remaining
 
@@ -417,9 +479,9 @@ function ns:UpdateSyncBarDisplay(now)
     local direction_label = "DIR --"
 
     if dual_display_active then
-        if main_display_remaining < off_display_remaining then
+        if main_effective_remaining < off_effective_remaining then
             direction_label = "DIR MH first"
-        elseif main_display_remaining > off_display_remaining then
+        elseif main_effective_remaining > off_effective_remaining then
             direction_label = "DIR OH first"
         else
             direction_label = "DIR even"
