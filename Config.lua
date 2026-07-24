@@ -14,6 +14,7 @@ ns.defaults = {
     debug = false,
     sync_window_seconds = 0.50,
     icon_mode = "weapon",
+    marker_brightness = 1.00,
     color_preset = "ember",
     show_mh_text = false,
     show_oh_text = false,
@@ -162,8 +163,14 @@ function ns:SetIconMode(mode)
     self:Print("Marker icon mode set to " .. mode .. ".")
 end
 
+function ns:SetMarkerBrightness(value)
+    self.db.marker_brightness = self:Clamp(value, 0.30, 2.00)
+    self:ApplyAllSettings()
+    self:Print(string.format("Marker brightness set to %.2fx.", self.db.marker_brightness))
+end
+
 function ns:PrintHelp()
-    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, sync <seconds>, icon <weapon|spark>, colors <ember|tide|ash>, text <mh|oh|mid|all> [on|off|toggle], reset, debug, ticks, config")
+    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, sync <seconds>, icon <weapon|spark>, bright <0.30-2.00>, colors <ember|tide|ash>, text <mh|oh|mid|all> [on|off|toggle], reset, debug, ticks, config")
 end
 
 function ns:SetTextVisibility(target, mode)
@@ -290,6 +297,17 @@ function ns:RegisterSlashCommands()
             end
 
             ns:SetIconMode(mode)
+            return
+        end
+
+        if command == "bright" or command == "brightness" then
+            local value = tonumber(args[2])
+            if not value then
+                ns:Print("Usage: /swingpulse bright <0.30-2.00>")
+                return
+            end
+
+            ns:SetMarkerBrightness(value)
             return
         end
 

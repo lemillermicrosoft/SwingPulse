@@ -15,6 +15,7 @@ SwingPulse is a minimal World of Warcraft melee swing timer addon with a single 
 - `/swingpulse scale <number>` sets the frame scale.
 - `/swingpulse sync <seconds>` sets the sync window used for dual-wield green state (clamped 0.05 to 1.00).
 - `/swingpulse icon <weapon|spark>` switches moving marker style between weapon icons and spark textures.
+- `/swingpulse bright <value>` (or `/swingpulse brightness <value>`) adjusts marker brightness (clamped 0.30 to 2.00).
 - `/swingpulse colors <ember|tide|ash>` switches color presets.
 - `/swingpulse config` (or `/sp ui`) toggles the in-game configuration panel for bar settings.
 - `/swingpulse reset` restores default settings.

@@ -36,6 +36,16 @@ function ns:GetSyncWindowSeconds()
     return window
 end
 
+function ns:GetMarkerBrightness()
+    if not self.db then
+        return 1.00
+    end
+
+    local brightness = self:Clamp(self.db.marker_brightness or 1.00, 0.30, 2.00)
+    self.db.marker_brightness = brightness
+    return brightness
+end
+
 function ns:GetWeaponIconTexture(slot_id)
     return GetInventoryItemTexture("player", slot_id)
 end
@@ -292,6 +302,7 @@ function ns:UpdateIconDisplay(icon, timer, progress, is_active)
     local green = icon.spark_green or 1
     local blue = icon.spark_blue or 1
     local alpha
+    local brightness = self:GetMarkerBrightness()
 
     if is_active then
         alpha = icon.spark_active_alpha or 1
@@ -299,7 +310,12 @@ function ns:UpdateIconDisplay(icon, timer, progress, is_active)
         alpha = icon.spark_inactive_alpha or 0.65
     end
 
-    icon:SetVertexColor(red, green, blue, alpha)
+    icon:SetVertexColor(
+        self:Clamp(red * brightness, 0, 1),
+        self:Clamp(green * brightness, 0, 1),
+        self:Clamp(blue * brightness, 0, 1),
+        self:Clamp(alpha * brightness, 0, 1)
+    )
 end
 
 function ns:UpdateSyncBarDisplay(now)
@@ -479,6 +495,9 @@ function ns:RefreshConfigPanel()
     panel.sync_slider:SetValue(self:GetSyncWindowSeconds())
     panel.sync_slider.value_text:SetText(string_format("%.2fs", self.db.sync_window_seconds))
 
+    panel.brightness_slider:SetValue(self:GetMarkerBrightness())
+    panel.brightness_slider.value_text:SetText(string_format("%.2fx", self.db.marker_brightness))
+
     local icon_mode = self:GetMarkerIconMode()
     UIDropDownMenu_SetSelectedValue(panel.icon_dropdown, icon_mode)
     UIDropDownMenu_SetText(panel.icon_dropdown, icon_mode == "spark" and "Spark" or "Weapon")
@@ -495,7 +514,7 @@ function ns:CreateConfigPanel()
     end
 
     local panel = CreateFrame("Frame", "SwingPulseConfigPanel", UIParent)
-    panel:SetSize(360, 600)
+    panel:SetSize(360, 640)
     panel:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     panel:SetFrameStrata("DIALOG")
     panel:SetToplevel(true)
@@ -679,7 +698,20 @@ function ns:CreateConfigPanel()
         ns:RefreshBars(true)
     end)
 
-    panel.icon_dropdown = create_dropdown(panel, "SwingPulseIconModeDropDown", "Marker Style", 16, -502, 128)
+    panel.brightness_slider = create_slider(panel, "Marker Brightness", 0.30, 2.0, 0.01, 18, -504)
+    panel.brightness_slider:SetScript("OnValueChanged", function(current, value)
+        local rounded = math_floor((value * 100) + 0.5) / 100
+        current.value_text:SetText(string_format("%.2fx", rounded))
+
+        if panel.syncing then
+            return
+        end
+
+        ns.db.marker_brightness = ns:Clamp(rounded, 0.30, 2.0)
+        ns:RefreshBars(true)
+    end)
+
+    panel.icon_dropdown = create_dropdown(panel, "SwingPulseIconModeDropDown", "Marker Style", 16, -556, 128)
     UIDropDownMenu_Initialize(panel.icon_dropdown, function(current)
         local options = {
             { text = "Weapon", value = "weapon" },
@@ -706,7 +738,7 @@ function ns:CreateConfigPanel()
         end
     end)
 
-    panel.colors_dropdown = create_dropdown(panel, "SwingPulseColorPresetDropDown", "Color Preset", 182, -502, 128)
+    panel.colors_dropdown = create_dropdown(panel, "SwingPulseColorPresetDropDown", "Color Preset", 182, -556, 128)
     UIDropDownMenu_Initialize(panel.colors_dropdown, function(current)
         local options = {
             { text = "Ember", value = "ember" },
