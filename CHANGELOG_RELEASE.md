@@ -1,4 +1,4 @@
-# SwingPulse 0.3.1
+# SwingPulse 0.4.0
 
 Release date: 2026-07-23
 
