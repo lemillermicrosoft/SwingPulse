@@ -15,7 +15,8 @@ SwingPulse is a minimal World of Warcraft melee swing timer addon with a single 
 - `/swingpulse scale <number>` sets the frame scale.
 - `/swingpulse sync <seconds>` sets the sync window used for dual-wield green state (clamped 0.05 to 1.00).
 - `/swingpulse icon <weapon|spark>` switches moving marker style between weapon icons and spark textures.
-- `/swingpulse bright <value>` (or `/swingpulse brightness <value>`) adjusts marker brightness (clamped 0.30 to 2.00).
+- `/swingpulse bright <value>` (or `/swingpulse brightness <value>`) adjusts both marker brightness values together (clamped 0.30 to 2.00).
+- `/swingpulse bright <mh|oh|all> <value>` adjusts main-hand or off-hand marker brightness individually.
 - `/swingpulse colors <ember|tide|ash>` switches color presets.
 - `/swingpulse config` (or `/sp ui`) toggles the in-game configuration panel for bar settings.
 - `/swingpulse reset` restores default settings.
@@ -27,7 +28,8 @@ SwingPulse is a minimal World of Warcraft melee swing timer addon with a single 
 - Main-hand swings are tracked from combat log swing events.
 - Off-hand tracking is shown on the same sync bar only while a valid off-hand attack speed is available.
 - The midpoint is explicitly marked (line, glow, and MID label) because midpoint timing is used to gauge when to tap the resync macro.
-- In dual wield, the bar turns green when MH and OH are within the configured sync window, and status text shows SYNC state plus which hand is first.
+- In dual wield, the bar turns green when MH is leading OH by no more than the configured sync window, and status text shows SYNC state plus which hand is first.
+- A short completion grace keeps the sync bar from flashing red at swing end when both hands finished inside the allowed sync window.
 - Moving markers support MH/OH labels and can use current weapon inventory icons with spark fallback.
 - Known on-next-swing abilities are treated as main-hand swing consumers, and Slam is treated as a swing reset signal.
 

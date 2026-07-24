@@ -15,6 +15,8 @@ ns.defaults = {
     sync_window_seconds = 0.50,
     icon_mode = "weapon",
     marker_brightness = 1.00,
+    main_marker_brightness = 1.00,
+    off_marker_brightness = 1.00,
     color_preset = "ember",
     show_mh_text = false,
     show_oh_text = false,
@@ -70,7 +72,20 @@ function ns:InitializeDatabase()
     end
 
     self.db = _G.SwingPulseDB
+    local had_main_brightness = self.db.main_marker_brightness ~= nil
+    local had_off_brightness = self.db.off_marker_brightness ~= nil
     self:MergeDefaults(self.db, self.defaults)
+
+    local legacy_brightness = self:Clamp(self.db.marker_brightness or 1.00, 0.30, 2.00)
+    self.db.marker_brightness = legacy_brightness
+
+    if not had_main_brightness then
+        self.db.main_marker_brightness = legacy_brightness
+    end
+
+    if not had_off_brightness then
+        self.db.off_marker_brightness = legacy_brightness
+    end
 
     if not self.color_presets[self.db.color_preset] then
         self.db.color_preset = self.defaults.color_preset
@@ -163,14 +178,38 @@ function ns:SetIconMode(mode)
     self:Print("Marker icon mode set to " .. mode .. ".")
 end
 
-function ns:SetMarkerBrightness(value)
-    self.db.marker_brightness = self:Clamp(value, 0.30, 2.00)
+function ns:SetMarkerBrightness(target, value)
+    if value == nil then
+        value = target
+        target = "all"
+    end
+
+    target = string.lower(tostring(target or "all"))
+    value = self:Clamp(value, 0.30, 2.00)
+
+    if target == "all" then
+        self.db.marker_brightness = value
+        self.db.main_marker_brightness = value
+        self.db.off_marker_brightness = value
+    elseif target == "mh" or target == "main" then
+        self.db.main_marker_brightness = value
+    elseif target == "oh" or target == "off" then
+        self.db.off_marker_brightness = value
+    else
+        self:Print("Usage: /swingpulse bright <0.30-2.00> or /swingpulse bright <mh|oh|all> <0.30-2.00>")
+        return
+    end
+
     self:ApplyAllSettings()
-    self:Print(string.format("Marker brightness set to %.2fx.", self.db.marker_brightness))
+    self:Print(string.format(
+        "Marker brightness - MH: %.2fx, OH: %.2fx.",
+        self.db.main_marker_brightness,
+        self.db.off_marker_brightness
+    ))
 end
 
 function ns:PrintHelp()
-    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, sync <seconds>, icon <weapon|spark>, bright <0.30-2.00>, colors <ember|tide|ash>, text <mh|oh|mid|all> [on|off|toggle], reset, debug, ticks, config")
+    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, sync <seconds>, icon <weapon|spark>, bright <0.30-2.00>|<mh|oh|all> <0.30-2.00>, colors <ember|tide|ash>, text <mh|oh|mid|all> [on|off|toggle], reset, debug, ticks, config")
 end
 
 function ns:SetTextVisibility(target, mode)
@@ -301,13 +340,21 @@ function ns:RegisterSlashCommands()
         end
 
         if command == "bright" or command == "brightness" then
+            local target = args[2]
             local value = tonumber(args[2])
-            if not value then
-                ns:Print("Usage: /swingpulse bright <0.30-2.00>")
+
+            if value then
+                ns:SetMarkerBrightness("all", value)
                 return
             end
 
-            ns:SetMarkerBrightness(value)
+            value = tonumber(args[3])
+            if not value then
+                ns:Print("Usage: /swingpulse bright <0.30-2.00> or /swingpulse bright <mh|oh|all> <0.30-2.00>")
+                return
+            end
+
+            ns:SetMarkerBrightness(target, value)
             return
         end
 

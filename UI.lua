@@ -36,14 +36,25 @@ function ns:GetSyncWindowSeconds()
     return window
 end
 
-function ns:GetMarkerBrightness()
+function ns:GetMarkerBrightness(target)
     if not self.db then
         return 1.00
     end
 
-    local brightness = self:Clamp(self.db.marker_brightness or 1.00, 0.30, 2.00)
-    self.db.marker_brightness = brightness
+    local key = "marker_brightness"
+    if target == "main" or target == "mh" or target == "main_marker_brightness" then
+        key = "main_marker_brightness"
+    elseif target == "off" or target == "oh" or target == "off_marker_brightness" then
+        key = "off_marker_brightness"
+    end
+
+    local brightness = self:Clamp(self.db[key] or 1.00, 0.30, 2.00)
+    self.db[key] = brightness
     return brightness
+end
+
+function ns:GetSyncCompletionGraceSeconds()
+    return self:GetSyncWindowSeconds()
 end
 
 function ns:GetWeaponIconTexture(slot_id)
@@ -86,6 +97,8 @@ function ns:RefreshIconTextures()
 
     self:ApplyMarkerTexture(self.ui.main_icon, MAIN_HAND_SLOT, { 1.00, 0.94, 0.20, 0.98, 0.75 })
     self:ApplyMarkerTexture(self.ui.off_icon, OFF_HAND_SLOT, { 0.42, 0.70, 1.00, 0.82, 0.48 })
+    self.ui.main_icon.brightness_key = "main_marker_brightness"
+    self.ui.off_icon.brightness_key = "off_marker_brightness"
     self:UpdateBarVisibility()
 end
 
@@ -302,7 +315,7 @@ function ns:UpdateIconDisplay(icon, timer, progress, is_active)
     local green = icon.spark_green or 1
     local blue = icon.spark_blue or 1
     local alpha
-    local brightness = self:GetMarkerBrightness()
+    local brightness = self:GetMarkerBrightness(icon.brightness_key)
 
     if is_active then
         alpha = icon.spark_active_alpha or 1
@@ -316,6 +329,30 @@ function ns:UpdateIconDisplay(icon, timer, progress, is_active)
         self:Clamp(blue * brightness, 0, 1),
         self:Clamp(alpha * brightness, 0, 1)
     )
+end
+
+local function is_timer_display_active(timer, now, grace_seconds)
+    if not timer or timer.duration <= 0 then
+        return false
+    end
+
+    if timer.active then
+        return true
+    end
+
+    if not timer.expires_at or timer.expires_at <= 0 then
+        return false
+    end
+
+    return now <= (timer.expires_at + grace_seconds)
+end
+
+local function get_timer_display_remaining(timer, now)
+    if not timer or timer.duration <= 0 or not timer.expires_at or timer.expires_at <= 0 then
+        return 0
+    end
+
+    return math_max(timer.expires_at - now, 0)
 end
 
 function ns:UpdateSyncBarDisplay(now)
@@ -343,21 +380,27 @@ function ns:UpdateSyncBarDisplay(now)
     self:UpdateTextVisibility()
 
     local red, green, blue, alpha
-    local min_remaining = main_remaining
-    local dual_active = self.state.dual_wield and main_timer.active and off_timer.active
-    local sync_diff = dual_active and math_abs(main_remaining - off_remaining) or nil
     local sync_window = self:GetSyncWindowSeconds()
-    local is_synced = dual_active and sync_diff and sync_diff <= sync_window
+    local completion_grace = self:GetSyncCompletionGraceSeconds()
+    local main_display_active = is_timer_display_active(main_timer, now, completion_grace)
+    local off_display_active = self.state.dual_wield and is_timer_display_active(off_timer, now, completion_grace)
+    local main_display_remaining = get_timer_display_remaining(main_timer, now)
+    local off_display_remaining = get_timer_display_remaining(off_timer, now)
+    local dual_display_active = self.state.dual_wield and main_display_active and off_display_active
+    local sync_diff = dual_display_active and math_abs(main_display_remaining - off_display_remaining) or nil
+    local mh_ahead = dual_display_active and main_display_remaining <= off_display_remaining
+    local is_synced = dual_display_active and mh_ahead and sync_diff and sync_diff <= sync_window
+    local min_remaining = main_display_remaining
 
     if self.state.dual_wield then
-        min_remaining = math_min(main_remaining, off_remaining)
+        min_remaining = math_min(main_display_remaining, off_display_remaining)
     end
 
     if is_synced then
         red, green, blue, alpha = self:GetColor("ready")
-    elseif dual_active then
+    elseif dual_display_active then
         red, green, blue, alpha = self:GetColor("warning")
-    elseif main_timer.active or (self.state.dual_wield and off_timer.active) then
+    elseif main_display_active or (self.state.dual_wield and off_display_active) then
         if self.db.latency_warning and min_remaining <= self:GetLatencyThreshold() then
             red, green, blue, alpha = self:GetColor("warning")
         else
@@ -373,10 +416,10 @@ function ns:UpdateSyncBarDisplay(now)
     local sync_label = is_synced and "SYNC OK" or "SYNC OUT"
     local direction_label = "DIR --"
 
-    if dual_active then
-        if main_remaining < off_remaining then
+    if dual_display_active then
+        if main_display_remaining < off_display_remaining then
             direction_label = "DIR MH first"
-        elseif main_remaining > off_remaining then
+        elseif main_display_remaining > off_display_remaining then
             direction_label = "DIR OH first"
         else
             direction_label = "DIR even"
@@ -495,8 +538,11 @@ function ns:RefreshConfigPanel()
     panel.sync_slider:SetValue(self:GetSyncWindowSeconds())
     panel.sync_slider.value_text:SetText(string_format("%.2fs", self.db.sync_window_seconds))
 
-    panel.brightness_slider:SetValue(self:GetMarkerBrightness())
-    panel.brightness_slider.value_text:SetText(string_format("%.2fx", self.db.marker_brightness))
+    panel.main_brightness_slider:SetValue(self:GetMarkerBrightness("main"))
+    panel.main_brightness_slider.value_text:SetText(string_format("%.2fx", self.db.main_marker_brightness))
+
+    panel.off_brightness_slider:SetValue(self:GetMarkerBrightness("off"))
+    panel.off_brightness_slider.value_text:SetText(string_format("%.2fx", self.db.off_marker_brightness))
 
     local icon_mode = self:GetMarkerIconMode()
     UIDropDownMenu_SetSelectedValue(panel.icon_dropdown, icon_mode)
@@ -514,7 +560,7 @@ function ns:CreateConfigPanel()
     end
 
     local panel = CreateFrame("Frame", "SwingPulseConfigPanel", UIParent)
-    panel:SetSize(360, 640)
+    panel:SetSize(360, 696)
     panel:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     panel:SetFrameStrata("DIALOG")
     panel:SetToplevel(true)
@@ -698,8 +744,8 @@ function ns:CreateConfigPanel()
         ns:RefreshBars(true)
     end)
 
-    panel.brightness_slider = create_slider(panel, "Marker Brightness", 0.30, 2.0, 0.01, 18, -504)
-    panel.brightness_slider:SetScript("OnValueChanged", function(current, value)
+    panel.main_brightness_slider = create_slider(panel, "MH Marker Brightness", 0.30, 2.0, 0.01, 18, -504)
+    panel.main_brightness_slider:SetScript("OnValueChanged", function(current, value)
         local rounded = math_floor((value * 100) + 0.5) / 100
         current.value_text:SetText(string_format("%.2fx", rounded))
 
@@ -707,11 +753,24 @@ function ns:CreateConfigPanel()
             return
         end
 
-        ns.db.marker_brightness = ns:Clamp(rounded, 0.30, 2.0)
+        ns.db.main_marker_brightness = ns:Clamp(rounded, 0.30, 2.0)
         ns:RefreshBars(true)
     end)
 
-    panel.icon_dropdown = create_dropdown(panel, "SwingPulseIconModeDropDown", "Marker Style", 16, -556, 128)
+    panel.off_brightness_slider = create_slider(panel, "OH Marker Brightness", 0.30, 2.0, 0.01, 18, -558)
+    panel.off_brightness_slider:SetScript("OnValueChanged", function(current, value)
+        local rounded = math_floor((value * 100) + 0.5) / 100
+        current.value_text:SetText(string_format("%.2fx", rounded))
+
+        if panel.syncing then
+            return
+        end
+
+        ns.db.off_marker_brightness = ns:Clamp(rounded, 0.30, 2.0)
+        ns:RefreshBars(true)
+    end)
+
+    panel.icon_dropdown = create_dropdown(panel, "SwingPulseIconModeDropDown", "Marker Style", 16, -612, 128)
     UIDropDownMenu_Initialize(panel.icon_dropdown, function(current)
         local options = {
             { text = "Weapon", value = "weapon" },
@@ -738,7 +797,7 @@ function ns:CreateConfigPanel()
         end
     end)
 
-    panel.colors_dropdown = create_dropdown(panel, "SwingPulseColorPresetDropDown", "Color Preset", 182, -556, 128)
+    panel.colors_dropdown = create_dropdown(panel, "SwingPulseColorPresetDropDown", "Color Preset", 182, -612, 128)
     UIDropDownMenu_Initialize(panel.colors_dropdown, function(current)
         local options = {
             { text = "Ember", value = "ember" },
