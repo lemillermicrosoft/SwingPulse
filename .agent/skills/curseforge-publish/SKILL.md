@@ -40,6 +40,7 @@ Use this skill when the user asks to:
 
 - Prefer deterministic packaging from TOC file list rather than wildcard folder zips.
 - If upload itself is requested, explain that web upload is manual unless a separate authenticated upload pipeline exists.
+- Omit hidden or private easter eggs (for example `/sp nick`) from generated CurseForge changelog/release notes unless the user explicitly asks to include them.
 
 ## Proven PowerShell scripts (TalonTracker)
 
