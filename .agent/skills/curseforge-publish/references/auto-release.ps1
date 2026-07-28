@@ -64,13 +64,14 @@ function Get-CommitsSince {
     Push-Location $RepoRoot
     try {
         $range = if ($Tag) { "$Tag..HEAD" } else { "HEAD" }
-        # Use a rare delimiter so subject/body survive multi-line commits.
-        $raw = git log $range --format="%H%x1f%s%x1f%b%x1e" 2>$null
+        # Use printable delimiters (git %x escapes don't survive PowerShell arg handling on Win PS 5.1).
+        # <<F>> between fields, <<R>> between records. Extremely unlikely to appear in commit text.
+        $raw = git log $range --format="%H<<F>>%s<<F>>%b<<R>>" 2>$null
         if (-not $raw) { return @() }
-        $entries = ($raw -join "`n") -split "`x1e" | Where-Object { $_.Trim() }
+        $entries = ($raw -join "`n") -split "<<R>>" | Where-Object { $_.Trim() }
         $out = @()
         foreach ($e in $entries) {
-            $parts = $e -split "`x1f", 3
+            $parts = $e -split "<<F>>", 3
             if ($parts.Count -lt 2) { continue }
             $out += [pscustomobject]@{
                 Sha     = $parts[0].Trim()
