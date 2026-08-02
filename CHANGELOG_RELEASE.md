@@ -1,7 +1,7 @@
-﻿# v0.6.1
+﻿# v0.6.2
 
-Changes since v0.6.0.
+Changes since v0.6.1.
 
 ## Fixes
-- reset ranged timer on Auto Shot cast start, not on projectile land (#1) (18fe462)
+- restore RANGE_DAMAGE/MISSED tracking and prime ranged_active on cast (#3) (#4) (e821e42)
 
