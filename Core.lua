@@ -10,6 +10,8 @@ ns.ui = ns.ui or nil
 ns.state = ns.state or {
     player_guid = nil,
     dual_wield = false,
+    ranged_active = false,
+    ranged_weapon = false,
     active_count = 0,
     nick = {
         title_enabled = false,
@@ -351,10 +353,66 @@ function ns:IsAnyTimerActive()
     return self.state.active_count > 0 or nick.active
 end
 
+function ns:HasRangedWeaponEquipped()
+    local slot_id = (INVSLOT_RANGED) or 18
+    local link = GetInventoryItemLink and GetInventoryItemLink("player", slot_id)
+    if not link then
+        return false
+    end
+
+    if not GetItemInfo then
+        return true
+    end
+
+    local _, _, _, _, _, _, subtype = GetItemInfo(link)
+    if not subtype then
+        return true
+    end
+
+    subtype = string.lower(subtype)
+    if subtype:find("bow") or subtype:find("gun") or subtype:find("crossbow") or subtype:find("thrown") then
+        return true
+    end
+
+    return false
+end
+
+function ns:ShouldUseRangedMode()
+    if not self.state.ranged_active then
+        return false
+    end
+
+    local mode = (self.db and self.db.ranged_mode) or "auto"
+    if mode == "off" then
+        return false
+    end
+
+    return self:HasRangedWeaponEquipped()
+end
+
 function ns:UpdateWeaponSpeeds()
-    local main_speed, off_speed = UnitAttackSpeed("player")
     local main_timer = self.state.timers.main
     local off_timer = self.state.timers.off
+
+    self.state.ranged_weapon = self:HasRangedWeaponEquipped()
+
+    if self:ShouldUseRangedMode() then
+        local ranged_speed = UnitRangedDamage and select(1, UnitRangedDamage("player")) or 0
+        if ranged_speed and ranged_speed > 0 then
+            main_timer.duration = ranged_speed
+        end
+
+        self.state.dual_wield = false
+        self:ResetTimer(off_timer, false)
+
+        if self.UpdateBarVisibility then
+            self:UpdateBarVisibility()
+        end
+
+        return
+    end
+
+    local main_speed, off_speed = UnitAttackSpeed("player")
 
     if main_speed and main_speed > 0 then
         main_timer.duration = main_speed

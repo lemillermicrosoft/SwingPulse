@@ -18,6 +18,8 @@ ns.defaults = {
     alpha = 1,
     locked = false,
     show_offhand = true,
+    show_mid_marker = true,
+    ranged_mode = "auto",
     latency_warning = true,
     compensate_latency = true,
     trace_ticks = false,
@@ -218,8 +220,45 @@ function ns:SetMarkerBrightness(target, value)
     ))
 end
 
+function ns:SetMidMarkerVisible(mode)
+    mode = string.lower(tostring(mode or "toggle"))
+    local current = self.db.show_mid_marker
+    if current == nil then
+        current = true
+    end
+
+    if mode == "on" then
+        self.db.show_mid_marker = true
+    elseif mode == "off" then
+        self.db.show_mid_marker = false
+    else
+        self.db.show_mid_marker = not current
+    end
+
+    self:ApplyAllSettings()
+    self:Print("Mid marker " .. (self.db.show_mid_marker and "shown." or "hidden."))
+end
+
+function ns:SetRangedMode(mode)
+    mode = string.lower(tostring(mode or ""))
+    if mode ~= "auto" and mode ~= "on" and mode ~= "off" then
+        self:Print("Usage: /swingpulse ranged <auto|on|off>")
+        return
+    end
+
+    self.db.ranged_mode = mode
+    self:UpdateWeaponSpeeds()
+
+    if self.RefreshIconTextures then
+        self:RefreshIconTextures()
+    end
+
+    self:ApplyAllSettings()
+    self:Print("Ranged tracking: " .. mode .. ".")
+end
+
 function ns:PrintHelp()
-    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, sync <seconds>, icon <weapon|spark>, bright <0.30-2.00>|<mh|oh|all> <0.30-2.00>, colors <ember|tide|ash>, text <mh|oh|mid|all> [on|off|toggle], reset, debug, ticks, config")
+    self:Print("Commands: lock, unlock, size <w> <h>, scale <n>, sync <seconds>, icon <weapon|spark>, bright <0.30-2.00>|<mh|oh|all> <0.30-2.00>, colors <ember|tide|ash>, text <mh|oh|mid|all> [on|off|toggle], midmarker [on|off|toggle], ranged <auto|on|off>, reset, debug, ticks, config")
 end
 
 function ns:SetTextVisibility(target, mode)
@@ -530,6 +569,16 @@ function ns:RegisterSlashCommands()
             end
 
             ns:SetTextVisibility(target, mode)
+            return
+        end
+
+        if command == "midmarker" or command == "mid" then
+            ns:SetMidMarkerVisible(args[2])
+            return
+        end
+
+        if command == "ranged" then
+            ns:SetRangedMode(args[2])
             return
         end
 

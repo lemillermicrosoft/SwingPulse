@@ -95,7 +95,10 @@ function ns:RefreshIconTextures()
         return
     end
 
-    self:ApplyMarkerTexture(self.ui.main_icon, MAIN_HAND_SLOT, { 1.00, 0.94, 0.20, 0.98, 0.75 })
+    local use_ranged = self:ShouldUseRangedMode()
+    local main_slot = use_ranged and ((INVSLOT_RANGED) or 18) or MAIN_HAND_SLOT
+
+    self:ApplyMarkerTexture(self.ui.main_icon, main_slot, { 1.00, 0.94, 0.20, 0.98, 0.75 })
     self:ApplyMarkerTexture(self.ui.off_icon, OFF_HAND_SLOT, { 0.42, 0.70, 1.00, 0.82, 0.48 })
     self.ui.main_icon.brightness_key = "main_marker_brightness"
     self.ui.off_icon.brightness_key = "off_marker_brightness"
@@ -251,6 +254,23 @@ function ns:UpdateBarVisibility()
         self.ui.mid_marker_glow:ClearAllPoints()
         self.ui.mid_marker_glow:SetPoint("TOP", self.ui.sync_bar, "TOP", 0, 1)
         self.ui.mid_marker_glow:SetPoint("BOTTOM", self.ui.sync_bar, "BOTTOM", 0, -1)
+    end
+
+    local show_mid_marker = self.db.show_mid_marker
+    if show_mid_marker == nil then
+        show_mid_marker = true
+    end
+
+    if show_mid_marker then
+        self.ui.mid_marker:Show()
+        if self.ui.mid_marker_glow then
+            self.ui.mid_marker_glow:Show()
+        end
+    else
+        self.ui.mid_marker:Hide()
+        if self.ui.mid_marker_glow then
+            self.ui.mid_marker_glow:Hide()
+        end
     end
 
     if self.ui.mid_label then
@@ -597,6 +617,13 @@ function ns:RefreshConfigPanel()
     panel.mh_text_checkbox:SetChecked(self.db.show_mh_text)
     panel.oh_text_checkbox:SetChecked(self.db.show_oh_text)
     panel.mid_text_checkbox:SetChecked(self.db.show_mid_text)
+    local show_mid_marker = self.db.show_mid_marker
+    if show_mid_marker == nil then
+        show_mid_marker = true
+    end
+    if panel.mid_marker_checkbox then
+        panel.mid_marker_checkbox:SetChecked(show_mid_marker)
+    end
     panel.diff_text_checkbox:SetChecked(self.db.show_diff_text)
     panel.sync_text_checkbox:SetChecked(self.db.show_sync_text)
 
@@ -743,6 +770,16 @@ function ns:CreateConfigPanel()
         end
 
         ns.db.show_mid_text = current:GetChecked() and true or false
+        ns:ApplyAllSettings()
+    end)
+
+    panel.mid_marker_checkbox = create_checkbox(panel, "Show MID Dash Marker", "TOPLEFT", 180, -188)
+    panel.mid_marker_checkbox:SetScript("OnClick", function(current)
+        if panel.syncing then
+            return
+        end
+
+        ns.db.show_mid_marker = current:GetChecked() and true or false
         ns:ApplyAllSettings()
     end)
 
