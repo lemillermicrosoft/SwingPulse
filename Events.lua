@@ -40,6 +40,15 @@ register_spell_names(SWING_RESET_SPELLS, { 1464 }, {
     "Slam",
 })
 
+local RANGED_AUTO_SHOT_SPELLS = {}
+register_spell_names(RANGED_AUTO_SHOT_SPELLS, { 75, 5019 }, {
+    "Auto Shot",
+    "Shoot",
+    "Shoot Bow",
+    "Shoot Gun",
+    "Shoot Crossbow",
+})
+
 function ns:HandleSwingResolved(is_offhand)
     local resolved_at = self:Now()
     local start_time = resolved_at - self:GetLatencyCompensation()
@@ -118,12 +127,7 @@ function ns:HandleCombatLogEvent()
         return
     end
 
-    if subevent == "RANGE_DAMAGE" or subevent == "RANGE_MISSED" then
-        if self:ShouldUseRangedMode() then
-            self:HandleSwingResolved(false)
-        end
-        return
-    end
+
 
     if subevent == "SPELL_CAST_SUCCESS" and arg2 and SWING_RESET_SPELLS[arg2] then
         self:DebugPrint("Reset swing from spell cast: " .. arg2)
@@ -191,6 +195,41 @@ function ns:START_AUTOREPEAT_SPELL()
     self:RefreshBars(true)
 end
 
+function ns:UNIT_SPELLCAST_SENT(unit_token, _, _, spell_name)
+    if unit_token ~= "player" then
+        return
+    end
+
+    if not spell_name or not RANGED_AUTO_SHOT_SPELLS[spell_name] then
+        return
+    end
+
+    if not self:ShouldUseRangedMode() then
+        return
+    end
+
+    self:DebugPrint("ranged cast SENT: " .. spell_name)
+    self:HandleSwingResolved(false)
+end
+
+function ns:UNIT_SPELLCAST_START(unit_token, _, spell_id)
+    if unit_token ~= "player" then
+        return
+    end
+
+    local spell_name = spell_id and spell_name_api(spell_id) or nil
+    if not spell_name or not RANGED_AUTO_SHOT_SPELLS[spell_name] then
+        return
+    end
+
+    if not self:ShouldUseRangedMode() then
+        return
+    end
+
+    self:DebugPrint("ranged cast START: " .. spell_name)
+    self:HandleSwingResolved(false)
+end
+
 function ns:STOP_AUTOREPEAT_SPELL()
     self.state.ranged_active = false
     self:UpdateWeaponSpeeds()
@@ -232,6 +271,8 @@ event_frame:RegisterEvent("UNIT_INVENTORY_CHANGED")
 event_frame:RegisterEvent("UNIT_ATTACK_SPEED")
 event_frame:RegisterEvent("START_AUTOREPEAT_SPELL")
 event_frame:RegisterEvent("STOP_AUTOREPEAT_SPELL")
+event_frame:RegisterEvent("UNIT_SPELLCAST_SENT")
+event_frame:RegisterEvent("UNIT_SPELLCAST_START")
 event_frame:RegisterEvent("PLAYER_REGEN_DISABLED")
 event_frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 event_frame:SetScript("OnEvent", function(_, event, ...)
