@@ -1,31 +1,12 @@
-# SwingPulse 0.5.0
+﻿# v0.6.0
 
-Release date: 2026-07-23
+Changes since v0.5.1.
 
-## Summary
+## Features
+- add ranged weapon support and mid-marker toggle (#1) (#2) (fbd5df5)
+- Add auto-release script for automated versioning and changelog generation (33bf7a3)
 
-This patch focuses on marker readability and cleaner dual-wield sync feedback.
+## Fixes
+- resolve relative -ZipPath against repo root before FileStream.OpenRead (a175674)
+- Update git log command delimiters for compatibility with PowerShell (3e44cdc)
 
-## Added
-
-- Separate persisted marker brightness settings for MH and OH, with migration from the legacy shared brightness value.
-- Slash command aliases for brightness control: `/swingpulse bright <value>`, `/swingpulse brightness <value>`, and `/swingpulse bright <mh|oh|all> <value>`.
-- In-game config panel sliders: **MH Marker Brightness** and **OH Marker Brightness** (0.30 to 2.00).
-
-## Changed
-
-- Marker tint and alpha now scale independently for MH and OH in both weapon-icon and spark marker modes.
-- Dual-wield sync now only shows green when MH is ahead of OH and still inside the configured sync window.
-- The sync bar keeps a short completion grace to avoid false red flashes on clean swing resolutions.
-
-## Testing Notes
-
-- Verify `/swingpulse bright 1.50` makes both MH/OH markers visibly brighter in combat.
-- Verify `/swingpulse bright mh 1.50` and `/swingpulse bright oh 0.50` adjust the two markers independently.
-- Verify the sync bar only turns green when MH is leading OH within the configured window.
-- Verify a clean synced finish does not flash red at swing end.
-
-## Known Limits
-
-- Weapon icon mode still depends on equipped weapon textures; spark fallback is used when icon data is unavailable.
-- Very high brightness values can visually saturate marker color channels by design.
