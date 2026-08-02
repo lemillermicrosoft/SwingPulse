@@ -127,7 +127,15 @@ function ns:HandleCombatLogEvent()
         return
     end
 
-
+    if subevent == "RANGE_DAMAGE" or subevent == "RANGE_MISSED" then
+        -- A landed ranged shot is definitive proof the player is in ranged mode,
+        -- even if START_AUTOREPEAT_SPELL hasn't fired yet on this session.
+        self.state.ranged_active = true
+        if self:ShouldUseRangedMode() then
+            self:HandleSwingResolved(false)
+        end
+        return
+    end
 
     if subevent == "SPELL_CAST_SUCCESS" and arg2 and SWING_RESET_SPELLS[arg2] then
         self:DebugPrint("Reset swing from spell cast: " .. arg2)
@@ -204,6 +212,10 @@ function ns:UNIT_SPELLCAST_SENT(unit_token, _, _, spell_name)
         return
     end
 
+    -- Casting Auto Shot / Shoot is definitive proof of ranged mode; prime the flag
+    -- so the first shot of a session isn't dropped by a stale ShouldUseRangedMode().
+    self.state.ranged_active = true
+
     if not self:ShouldUseRangedMode() then
         return
     end
@@ -221,6 +233,8 @@ function ns:UNIT_SPELLCAST_START(unit_token, _, spell_id)
     if not spell_name or not RANGED_AUTO_SHOT_SPELLS[spell_name] then
         return
     end
+
+    self.state.ranged_active = true
 
     if not self:ShouldUseRangedMode() then
         return
