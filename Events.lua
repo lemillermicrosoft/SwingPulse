@@ -118,6 +118,13 @@ function ns:HandleCombatLogEvent()
         return
     end
 
+    if subevent == "RANGE_DAMAGE" or subevent == "RANGE_MISSED" then
+        if self:ShouldUseRangedMode() then
+            self:HandleSwingResolved(false)
+        end
+        return
+    end
+
     if subevent == "SPELL_CAST_SUCCESS" and arg2 and SWING_RESET_SPELLS[arg2] then
         self:DebugPrint("Reset swing from spell cast: " .. arg2)
         self:RestartMainTimer(self:Now() - self:GetLatencyCompensation())
@@ -173,6 +180,28 @@ function ns:UNIT_ATTACK_SPEED(unit_token)
     self:UpdateWeaponSpeeds()
 end
 
+function ns:START_AUTOREPEAT_SPELL()
+    self.state.ranged_active = true
+    self:UpdateWeaponSpeeds()
+
+    if self.RefreshIconTextures then
+        self:RefreshIconTextures()
+    end
+
+    self:RefreshBars(true)
+end
+
+function ns:STOP_AUTOREPEAT_SPELL()
+    self.state.ranged_active = false
+    self:UpdateWeaponSpeeds()
+
+    if self.RefreshIconTextures then
+        self:RefreshIconTextures()
+    end
+
+    self:RefreshBars(true)
+end
+
 function ns:PLAYER_REGEN_DISABLED()
     if self.StartNickChallenge then
         self:StartNickChallenge(self:Now())
@@ -201,6 +230,8 @@ event_frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 event_frame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 event_frame:RegisterEvent("UNIT_INVENTORY_CHANGED")
 event_frame:RegisterEvent("UNIT_ATTACK_SPEED")
+event_frame:RegisterEvent("START_AUTOREPEAT_SPELL")
+event_frame:RegisterEvent("STOP_AUTOREPEAT_SPELL")
 event_frame:RegisterEvent("PLAYER_REGEN_DISABLED")
 event_frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 event_frame:SetScript("OnEvent", function(_, event, ...)
