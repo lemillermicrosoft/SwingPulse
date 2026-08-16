@@ -220,8 +220,12 @@ function ns:UNIT_SPELLCAST_SENT(unit_token, _, _, spell_name)
         return
     end
 
+    -- NOTE: do NOT restart the swing timer here. The cast SENT event fires
+    -- before the projectile actually leaves the weapon, so resetting the bar
+    -- now makes it look like the timer ends before the shot fires. The
+    -- RANGE_DAMAGE / RANGE_MISSED combat-log branch is the ground-truth
+    -- "shot landed" signal and is the only place we restart the timer.
     self:DebugPrint("ranged cast SENT: " .. spell_name)
-    self:HandleSwingResolved(false)
 end
 
 function ns:UNIT_SPELLCAST_START(unit_token, _, spell_id)
@@ -240,8 +244,9 @@ function ns:UNIT_SPELLCAST_START(unit_token, _, spell_id)
         return
     end
 
+    -- See UNIT_SPELLCAST_SENT: priming ranged_active is the only work we do here.
+    -- Ranged timer restarts belong to RANGE_DAMAGE / RANGE_MISSED, not to cast start.
     self:DebugPrint("ranged cast START: " .. spell_name)
-    self:HandleSwingResolved(false)
 end
 
 function ns:STOP_AUTOREPEAT_SPELL()
