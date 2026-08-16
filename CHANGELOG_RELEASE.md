@@ -1,7 +1,7 @@
-﻿# v0.6.2
+﻿# v0.6.3
 
-Changes since v0.6.1.
+Changes since v0.6.2.
 
 ## Fixes
-- restore RANGE_DAMAGE/MISSED tracking and prime ranged_active on cast (#3) (#4) (e821e42)
+- don't restart ranged timer on cast start (#5) (#6) (3da6c09)
 
